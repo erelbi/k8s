@@ -1,5 +1,9 @@
 ## Kubernetes Dokümantasyon Projesi
 Bu proje, Kubernetes ekosistemindeki temel kavramları, bileşenleri, yönetim araçlarını ve ileri düzey konuları kapsamlı ve detaylı bir şekilde açıklayan HTML belgelerinden oluşan bir koleksiyondur. Amacımız, Kubernetes öğrenme yolculuğunu kolaylaştırmak ve hem yeni başlayanlar hem de deneyimli kullanıcılar için güvenilir bir başvuru kaynağı sunmaktır.
+
+Bu dokümantasyonun canlı bir versiyonuna [buradan](https://erelbi.github.io/k8s/) erişebilirsiniz.
+
+
 ## Proje Amacı ve Hazırlanma Nedeni
 Modern yazılım geliştirme ve operasyon süreçlerinde, konteynerizasyon ve Kubernetes gibi platformlar vazgeçilmez hale gelmiştir. Ancak Kubernetes'in geniş ve karmaşık yapısı, öğrenme sürecini zorlaştırabilmektedir. Bu dokümantasyon projesi, aşağıdaki ihtiyaçları karşılamak üzere hazırlanmıştır:
 * Kapsamlı Bilgi: Kubernetes'in temelinden ileri düzey konularına kadar geniş bir yelpazede bilgi sunmak.
