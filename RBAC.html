@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes RBAC: Rol Tabanlı Erişim Kontrolü Detayları</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Tech Blue, Gray, Green (Allow), Red (Block), Purple (RBAC) -->
+    <!-- Application Structure Plan: This standalone HTML document is dedicated to Kubernetes RBAC (Role-Based Access Control). It starts with an introduction to RBAC, explaining its necessity. It then details the core RBAC components: Role, ClusterRole, RoleBinding, ClusterRoleBinding, and Subjects. A key section illustrates the RBAC authorization flow with a visual diagram. Practical YAML examples are provided for common scenarios, followed by troubleshooting tips. The linear structure aims for a clear, comprehensive understanding of this critical security feature. -->
+    <!-- Visualization & Content Choices: 
+        - RBAC Flow Diagram: HTML/CSS diagram illustrating how a request is authorized through RBAC components (Subject -> Binding -> Role -> Permissions). Goal: Visually explain the authorization process.
+        - Role vs. ClusterRole Scope Diagram: Simple HTML/CSS diagram showing namespace-bound vs. cluster-wide roles. Goal: Differentiate scopes visually.
+        - All diagrams use plain HTML/CSS (Tailwind for layout, simple boxes and Unicode characters for icons/arrows).
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1f2937;
+        }
+        .section-header {
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .content-card {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+        }
+        pre {
+            background-color: #1f2937;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-family: 'monospace', 'Inter';
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .diagram-box {
+            background-color: #e0f2fe; /* Light blue for diagram backgrounds */
+            border: 1px solid #93c5fd;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: 100%;
+            max-width: 800px; /* Max width for diagrams */
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .diagram-node {
+            background-color: #fff;
+            border: 1px solid #3b82f6;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+        }
+        .diagram-arrow {
+            font-size: 1.5rem;
+            color: #2563eb;
+            margin: 0.2rem 0;
+        }
+        .rbac-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #8b5cf6; /* Purple for RBAC */
+        }
+        .permission-box {
+            background-color: #d1fae5;
+            border: 1px solid #34d399;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+            color: #065f46;
+        }
+        .role-box {
+            background-color: #fef3c7; /* Light orange */
+            border: 1px solid #fbbf24;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+            color: #9a3412;
+        }
+        .binding-box {
+            background-color: #e0e7ff; /* Light indigo */
+            border: 1px solid #a5b4fc;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+            color: #4338ca;
+        }
+        .subject-box {
+            background-color: #fee2e2; /* Light red */
+            border: 1px solid #ef4444;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+            color: #991b1b;
+        }
+    </style>
+</head>
+<body class="scroll-smooth">
+
+    <header class="bg-blue-600 text-white py-6 text-center shadow-md">
+        <div class="container mx-auto px-6">
+            <h1 class="text-3xl md:text-4xl font-bold">Kubernetes RBAC: Rol Tabanlı Erişim Kontrolü Detayları</h1>
+            <p class="text-lg mt-2">Kubernetes'te kullanıcı ve servislerin kaynaklara erişimini güvenli bir şekilde yönetin.</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section id="giris" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Giriş: RBAC Nedir ve Neden Önemlidir?</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Kubernetes kümelerinde, birden fazla kullanıcının (insan veya otomasyon aracı) ve uygulamanın (Pod'lar, kontrolörler) kaynaklarla etkileşime girmesi yaygın bir durumdur. Bu etkileşimlerin güvenli ve kontrollü bir şekilde gerçekleşmesini sağlamak için güçlü bir yetkilendirme (authorization) mekanizmasına ihtiyaç duyulur. İşte bu noktada **RBAC (Role-Based Access Control - Rol Tabanlı Erişim Kontrolü)** devreye girer.
+            </p>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                RBAC, Kubernetes'in yerleşik bir yetkilendirme mekanizmasıdır. Kullanıcıların veya servislerin (ServiceAccount'lar) hangi kaynaklara (Pod'lar, Deployments, Services vb.) hangi eylemleri (oluşturma, okuma, güncelleme, silme) gerçekleştirebileceğini tanımlamanıza olanak tanır. RBAC kullanmak, "en az ayrıcalık" (least privilege) ilkesini uygulamanıza yardımcı olur; yani her kullanıcının veya servisin yalnızca işini yapmak için ihtiyaç duyduğu minimum izinlere sahip olmasını sağlar. Bu, güvenlik ihlali riskini önemli ölçüde azaltır.
+            </p>
+        </section>
+
+        <section id="temel-kavramlar" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">RBAC Temel Kavramları</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                RBAC, dört ana Kubernetes objesi etrafında döner: `Role`, `ClusterRole`, `RoleBinding` ve `ClusterRoleBinding`. Bu objeler, "kimin" "neye" "ne yapabileceğini" tanımlar.
+            </p>
+
+            <div class="content-card">
+                <h3 class="text-xl font-bold text-gray-800 mb-3">1. Role (Rol)</h3>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    Bir **Role**, belirli bir `namespace` (ad alanı) içinde izinler kümesini tanımlar. Yalnızca bu ad alanı içindeki kaynaklara uygulanabilecek eylemleri belirtir. Örneğin, bir Role sadece `default` namespace'indeki Pod'ları listeleme izni verebilir. Rollerin kapsamı her zaman ad alanı ile sınırlıdır.
+                </p>
+                <h4 class="font-bold text-gray-700 mb-2">Örnek YAML:</h4>
+                <pre><code>
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: development # Bu rol sadece 'development' namespace'inde geçerlidir
+  name: pod-okuyucu
+rules: # İzinlerin listesi
+- apiGroups: [""] # "" core API grubunu ifade eder (Pod, Service vb.)
+  resources: ["pods", "pods/log"] # "pods" ve "pods/log" kaynaklarına izin ver
+  verbs: ["get", "watch", "list"] # "get", "watch", "list" eylemlerine izin ver
+                </code></pre>
+            </div>
+
+            <div class="content-card">
+                <h3 class="text-xl font-bold text-gray-800 mb-3">2. ClusterRole (Küme Rolü)</h3>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    Bir **ClusterRole**, küme genelinde (namespacesiz) veya küme kapsamındaki kaynaklar (düğümler gibi) üzerinde izinler kümesini tanımlar. Ayrıca tüm ad alanlarındaki belirli kaynak türlerine izin vermek için de kullanılabilir. ClusterRole'lar genellikle küme yöneticileri tarafından, küme düzeyinde yönetim görevleri veya tüm ad alanlarında uygulanması gereken politikalar için oluşturulur.
+                </p>
+                <h4 class="font-bold text-gray-700 mb-2">Örnek YAML:</h4>
+                <pre><code>
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: node-okuyucu # Bu rol küme genelinde geçerlidir
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: ["extensions", "apps"] # Deployment'lar gibi kaynaklar için
+  resources: ["deployments"]
+  verbs: ["list"] # Tüm ad alanlarındaki deployment'ları listeleme izni
+                </code></pre>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">Role vs. ClusterRole Kapsamı</h4>
+                    <div class="flex items-start justify-center w-full">
+                        <div class="flex flex-col items-center mx-4">
+                            <div class="role-box">
+                                <span class="rbac-icon">📜</span>
+                                <div class="pod-label">Role: pod-okuyucu</div>
+                                <p class="text-xs text-gray-700 mt-1">Kapsam: Namespace (development)</p>
+                            </div>
+                            <span class="diagram-arrow">↓</span>
+                            <div class="diagram-node bg-blue-100 border-blue-400">
+                                <p class="text-sm font-semibold text-blue-800">Namespace: development</p>
+                                <span class="pod-icon">📦</span><div class="pod-label">Pods</div>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-center mx-4">
+                            <div class="role-box bg-purple-100 border-purple-400 text-purple-800">
+                                <span class="rbac-icon">🌟</span>
+                                <div class="pod-label">ClusterRole: node-okuyucu</div>
+                                <p class="text-xs text-gray-700 mt-1">Kapsam: Küme Geneli</p>
+                            </div>
+                            <span class="diagram-arrow">↓</span>
+                            <div class="diagram-node bg-gray-100 border-gray-400">
+                                <p class="text-sm font-semibold text-gray-800">Tüm Cluster</p>
+                                <span class="pod-icon">💻</span><div class="pod-label">Nodes</div>
+                                <span class="pod-icon">📦</span><div class="pod-label">Tüm Namespace'lerdeki Pods</div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">Roller ad alanına bağlıdır, Küme Rolleri ise küme genelinde veya tüm ad alanlarında geçerlidir.</p>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <h3 class="text-xl font-bold text-gray-800 mb-3">3. RoleBinding (Rol Bağlama)</h3>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    Bir **RoleBinding**, bir `Role`'de tanımlanan izinleri bir veya daha fazla "konuya" (Subject: kullanıcılar, gruplar veya ServiceAccount'lar) belirli bir `namespace` içinde atar. Yani, bir RoleBinding, bir Rolü kimin kullanabileceğini ve hangi ad alanında kullanabileceğini belirtir.
+                </p>
+                <h4 class="font-bold text-gray-700 mb-2">Örnek YAML:</h4>
+                <pre><code>
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dev-pod-okuyucu-binding
+  namespace: development # Bu bağlama 'development' namespace'inde geçerlidir
+subjects: # İzin verilecek konular
+- kind: User # Konu tipi: Kullanıcı
+  name: developer-ali # Kullanıcı adı
+  apiGroup: rbac.authorization.k8s.io
+- kind: ServiceAccount # Konu tipi: Servis Hesabı
+  name: ci-cd-sa # Servis Hesabı adı
+  namespace: ci-cd-namespace # Servis Hesabının ait olduğu namespace
+roleRef: # Hangi Role'e bağlanıldığı
+  kind: Role
+  name: pod-okuyucu # Yukarıda tanımlanan 'pod-okuyucu' Role'e referans
+  apiGroup: rbac.authorization.k8s.io
+                </code></pre>
+            </div>
+
+            <div class="content-card">
+                <h3 class="text-xl font-bold text-gray-800 mb-3">4. ClusterRoleBinding (Küme Rolü Bağlama)</h3>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    Bir **ClusterRoleBinding**, bir `ClusterRole`'de tanımlanan izinleri bir veya daha fazla "konuya" (kullanıcılar, gruplar veya ServiceAccount'lar) **küme genelinde** atar. ClusterRoleBinding'ler `namespace`'e bağlı değildir ve ClusterRole'un küme genelindeki izinlerini tüm konulara uygular.
+                </p>
+                <h4 class="font-bold text-gray-700 mb-2">Örnek YAML:</h4>
+                <pre><code>
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tum-node-okuyucular
+subjects:
+- kind: Group # Konu tipi: Grup
+  name: system:masters # Kubernetes'in varsayılan yönetici grubu
+  apiGroup: rbac.authorization.k8s.io
+- kind: User
+  name: admin-veli
+  apiGroup: rbac.authorization.k8s.io
+roleRef: # Hangi ClusterRole'e bağlanıldığı
+  kind: ClusterRole
+  name: node-okuyucu # Yukarıda tanımlanan 'node-okuyucu' ClusterRole'e referans
+  apiGroup: rbac.authorization.k8s.io
+                </code></pre>
+            </div>
+
+            <div class="content-card">
+                <h3 class="text-xl font-bold text-gray-800 mb-3">5. Konular (Subjects): Kimlere İzin Verilir?</h3>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    RBAC izinleri, aşağıdaki konulara atanabilir:
+                    <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                        <li>**User (Kullanıcı):** Genellikle insan kullanıcıları temsil eder. Kubernetes'in yerleşik bir kullanıcı yönetimi sistemi yoktur, bu nedenle kullanıcılar harici kimlik doğrulama sistemleri (örneğin X.509 sertifikaları, OIDC) aracılığıyla kimlik doğrulaması yapılır.</li>
+                        <li>**Group (Grup):** Birden fazla kullanıcıyı bir araya getiren mantıksal bir kümedir. Kullanıcılarda olduğu gibi, gruplar da harici sistemler aracılığıyla yönetilir.</li>
+                        <li>**ServiceAccount (Servis Hesabı):** Kubernetes içinde çalışan süreçler (örneğin Pod'lar, kontrolörler) için kimlik sağlar. Kubernetes, Pod'lara otomatik olarak bir ServiceAccount atar ve bu hesaplara RBAC izinleri atanabilir. Bir Pod'un Kubernetes API'si ile etkileşime girmesi gerektiğinde kullanılır.</li>
+                    </ul>
+                </p>
+            </div>
+        </section>
+
+        <section id="calisma-prensibi" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">RBAC Çalışma Prensibi: Yetkilendirme Akışı</h2>
+            <div class="content-card">
+                <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                    Bir kullanıcı veya servis (konu), Kubernetes API'sine bir istek gönderdiğinde, bu istek `kube-apiserver` tarafından işlenir. API sunucusu, isteği doğrulamadan (authentication) sonra yetkilendirme (authorization) aşamasına geçer. RBAC, bu yetkilendirme aşamasının bir parçasıdır.
+                </p>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">RBAC Yetkilendirme Akışı</h4>
+                    <div class="flex flex-col items-center w-full">
+                        <div class="subject-box">
+                            <span class="rbac-icon">👤</span>
+                            <div class="pod-label">Kullanıcı / Servis Hesabı</div>
+                            <p class="text-xs text-gray-700 mt-1">(Konu - Subject)</p>
+                        </div>
+                        <span class="diagram-arrow">İstek Gönderir (kubectl/API)</span>
+                        <div class="diagram-node bg-blue-100 border-blue-400">
+                            <span class="rbac-icon">🌐</span>
+                            <div class="pod-label">kube-apiserver</div>
+                            <p class="text-xs text-gray-700 mt-1">(Kimlik Doğrulama Sonrası)</p>
+                        </div>
+                        <span class="diagram-arrow">Yetkilendirme Sorgusu</span>
+                        <div class="binding-box">
+                            <span class="rbac-icon">🔗</span>
+                            <div class="pod-label">RoleBinding / ClusterRoleBinding</div>
+                            <p class="text-xs text-gray-700 mt-1">(Kimi, Hangi Role Bağlıyor?)</p>
+                        </div>
+                        <span class="diagram-arrow">Hangi Rol?</span>
+                        <div class="role-box">
+                            <span class="rbac-icon">📜</span>
+                            <div class="pod-label">Role / ClusterRole</div>
+                            <p class="text-xs text-gray-700 mt-1">(Hangi İzinleri İçeriyor?)</p>
+                        </div>
+                        <span class="diagram-arrow">İzin Kontrolü</span>
+                        <div class="permission-box">
+                            <span class="rbac-icon">✅</span>
+                            <div class="pod-label">İzin Verildi (Kaynak Erişimi)</div>
+                        </div>
+                        <span class="diagram-arrow">⬇️ Veya ⬇️</span>
+                        <div class="diagram-node bg-red-100 border-red-400 text-red-800">
+                            <span class="rbac-icon">❌</span>
+                            <div class="pod-label">Erişim Reddedildi</div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">İstek, API sunucusu tarafından işlenir ve ilgili RoleBinding/ClusterRoleBinding ile Role/ClusterRole üzerinden izin kontrolü yapılır.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="kullanim-senaryolari" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Örnek Kullanım Senaryoları ve YAML</h2>
+
+            <div class="content-card">
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Senaryo 1: Bir Geliştiriciye Belirli Bir Namespace'de Pod Yaratma İzni Verme</h3>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    Bir geliştirici olan "developer-ayse"nin sadece `dev-apps` namespace'inde Pod'ları ve Deployments'ları oluşturmasına, güncellemesine, listelemesine ve silmesine izin vermek istiyoruz.
+                </p>
+                <h4 class="font-bold text-gray-700 mb-2">1. Role Tanımı (`dev-apps-editor-role.yaml`):</h4>
+                <pre><code>
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: dev-apps # Bu rol sadece 'dev-apps' namespace'inde geçerlidir
+  name: dev-apps-editor
+rules:
+- apiGroups: ["", "apps", "extensions"] # Core API, apps, extensions grupları
+  resources: ["pods", "deployments", "services", "ingresses"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+                </code></pre>
+                <h4 class="font-bold text-gray-700 mb-2">2. RoleBinding Tanımı (`dev-apps-editor-binding.yaml`):</h4>
+                <pre><code>
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dev-apps-editor-binding
+  namespace: dev-apps # Bu bağlama 'dev-apps' namespace'inde geçerlidir
+subjects:
+- kind: User
+  name: developer-ayse # Kullanıcı adı
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: dev-apps-editor # Yukarıdaki Role'e referans
+  apiGroup: rbac.authorization.k8s.io
+                </code></pre>
+                <h4 class="font-bold text-gray-700 mb-2">Uygulama:</h4>
+                <pre><code>
+kubectl apply -f dev-apps-editor-role.yaml
+kubectl apply -f dev-apps-editor-binding.yaml
+                </code></pre>
+                <p class="text-gray-700 mt-4 leading-relaxed">
+                    Artık `developer-ayse` kullanıcısı, sadece `dev-apps` namespace'i içindeki belirli kaynakları yönetebilir. Diğer namespace'lerde herhangi bir işlem yapamayacaktır.
+                </p>
+            </div>
+
+            <div class="content-card">
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Senaryo 2: Bir CI/CD Servis Hesabına Küme Genelinde Sadece Okuma İzni Verme</h3>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    Bir CI/CD işlem hattının, küme genelindeki tüm Pod'ları ve Düğümleri okuma (listeleme, alma, izleme) iznine sahip olmasını istiyoruz.
+                </p>
+                <h4 class="font-bold text-gray-700 mb-2">1. ClusterRole Tanımı (`cluster-reader-role.yaml`):</h4>
+                <pre><code>
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-reader
+rules:
+- apiGroups: [""] # Core API grubu
+  resources: ["pods", "nodes", "services", "namespaces"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"] # Uygulama API grubu
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+                </code></pre>
+                <h4 class="font-bold text-gray-700 mb-2">2. ServiceAccount Tanımı (`ci-cd-serviceaccount.yaml`):</h4>
+                <pre><code>
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-cd-viewer
+  namespace: default # ServiceAccount'ın bulunacağı namespace
+                </code></pre>
+                <h4 class="font-bold text-gray-700 mb-2">3. ClusterRoleBinding Tanımı (`cluster-reader-binding.yaml`):</h4>
+                <pre><code>
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ci-cd-viewer-binding
+subjects:
+- kind: ServiceAccount
+  name: ci-cd-viewer
+  namespace: default # ServiceAccount'ın namespace'i
+roleRef:
+  kind: ClusterRole
+  name: cluster-reader # Yukarıdaki ClusterRole'e referans
+  apiGroup: rbac.authorization.k8s.io
+                </code></pre>
+                <h4 class="font-bold text-gray-700 mb-2">Uygulama:</h4>
+                <pre><code>
+kubectl apply -f cluster-reader-role.yaml
+kubectl apply -f ci-cd-serviceaccount.yaml
+kubectl apply -f cluster-reader-binding.yaml
+                </code></pre>
+                <p class="text-gray-700 mt-4 leading-relaxed">
+                    Bu sayede `default` namespace'indeki `ci-cd-viewer` ServiceAccount'ı, tüm küme genelindeki Pod'lar, Düğümler ve diğer belirtilen kaynaklar üzerinde okuma izinlerine sahip olacaktır. Bu ServiceAccount, CI/CD işlem hattında kullanılabilir.
+                </p>
+            </div>
+        </section>
+
+        <section id="ipuclari" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Sıkça Karşılaşılan RBAC Problemleri ve İpuçları</h2>
+            <div class="content-card">
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**"Forbidden" Hataları:** Bir işlem yapmaya çalıştığınızda "Forbidden" hatası alıyorsanız, bu genellikle RBAC izninizin olmadığını gösterir. İlgili kullanıcının/ServiceAccount'ın hangi Rollere veya ClusterRollere bağlı olduğunu ve bu rollerin ihtiyaç duyulan izinleri içerip içermediğini kontrol edin.</li>
+                    <li>**`kubectl auth can-i`:** Bu komut, belirli bir kullanıcının/ServiceAccount'ın belirli bir kaynak üzerinde belirli bir eylemi yapıp yapamayacağını kontrol etmek için paha biçilmezdir. Örnek: `kubectl auth can-i create deployments --as=developer-ayse --namespace=dev-apps`</li>
+                    <li>**`kubectl get roles` / `clusterroles` / `rolebindings` / `clusterrolebindings`:** İzin yapılandırmanızı kontrol etmek için bu komutları kullanın.</li>
+                    <li>**`ServiceAccount` Kullanımı:** Pod'lar için her zaman özel `ServiceAccount`'lar oluşturun ve onlara yalnızca ihtiyaç duydukları minimum izinleri verin. Varsayılan `default` ServiceAccount'ı kullanmaktan kaçının.</li>
+                    <li>**`ServiceAccount` Token'ları:** Bir Pod içinde çalışan uygulamanızın Kubernetes API'si ile iletişim kurması gerektiğinde, Pod'un bağlandığı `ServiceAccount`'ın otomatik olarak monte edilen token'ını kullanır. Bu token'ın doğru RBAC izinlerine sahip olduğundan emin olun.</li>
+                    <li>**Audit Logları:** Kubernetes audit loglarını etkinleştirerek, küme içinde kimin ne zaman hangi işlemi yapmaya çalıştığını ve yetkilendirme kararlarını ayrıntılı olarak izleyebilirsiniz. Bu, güvenlik denetimi ve sorun giderme için kritiktir.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="sonuc" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Sonuç</h2>
+            <p class="text-lg text-gray-700 leading-relaxed">
+                Kubernetes RBAC, kümelerinizin güvenliğini sağlamak için temel bir yetkilendirme mekanizmasıdır. `Role`, `ClusterRole`, `RoleBinding` ve `ClusterRoleBinding` gibi objeleri doğru bir şekilde kullanarak, kullanıcılarınıza ve servislerinize en az ayrıcalık prensibine dayalı, granüler izinler atayabilirsiniz. Bu, yetkisiz erişimi engeller, operasyonel hataları azaltır ve güvenlik denetimini kolaylaştırır. Karmaşık Kubernetes ortamlarında, güçlü bir RBAC stratejisi uygulamak, güvenliğin ve yönetilebilirliğin temelini oluşturur. RBAC kavramlarını ve uygulama yöntemlerini iyi anlamak, her Kubernetes yöneticisi ve geliştiricisi için vazgeçilmez bir beceridir.
+            </p>
+        </section>
+    </main>
+    
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2025 Kubernetes RBAC Detaylı Anlatım. Tüm hakları saklıdır.</p>
+            <p class="text-sm text-gray-400 mt-2">Bu belge, Kubernetes'teki Rol Tabanlı Erişim Kontrolü'nü detaylı açıklamak amacıyla oluşturulmuştur.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
