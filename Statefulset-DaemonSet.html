@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes StatefulSet ve DaemonSet Detaylı Anlatım</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Tech Blue, Gray, Green (Running Pods), Orange (Ordered), Purple (Node-level) -->
+    <!-- Application Structure Plan: This standalone HTML document is dedicated to Kubernetes StatefulSet and DaemonSet resources. It starts with an introduction to specialized workloads, then dedicates sections to StatefulSet and DaemonSet respectively. Each section explains "what it is," "why it's used," "how it works," and "key considerations," supported by conceptual HTML/CSS diagrams and YAML examples. A comprehensive comparison section highlights their key differences, similarities, and combined use cases using a table. The linear structure aims for clear and detailed understanding of these specific workload types. -->
+    <!-- Visualization & Content Choices: 
+        - StatefulSet Flow Diagram: HTML/CSS diagram illustrating ordered Pod creation with stable identities and persistent volumes. Goal: Explain StatefulSet's unique features for stateful apps.
+        - DaemonSet Flow Diagram: HTML/CSS diagram showing a DaemonSet deploying one Pod per node across the cluster. Goal: Explain DaemonSet's node-level deployment.
+        - Comparison Table: Summarizes key aspects, primary use cases, and deployment patterns for StatefulSet vs. DaemonSet. Goal: Compare/Inform.
+        - All diagrams use plain HTML/CSS (Tailwind for layout, simple boxes and Unicode characters for icons/arrows).
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1f2937;
+        }
+        .section-header {
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .content-card {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+        }
+        pre {
+            background-color: #1f2937;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-family: 'monospace', 'Inter';
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .diagram-box {
+            background-color: #e0f2fe; /* Light blue for diagram backgrounds */
+            border: 1px solid #93c5fd;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: 100%;
+            max-width: 800px; /* Max width for diagrams */
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .diagram-node {
+            background-color: #fff;
+            border: 1px solid #3b82f6;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+        }
+        .diagram-arrow {
+            font-size: 1.5rem;
+            color: #2563eb;
+            margin: 0.2rem 0;
+        }
+        .pod-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #6366f1; /* Indigo for pods */
+        }
+        .stateful-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #f97316; /* Orange for StatefulSet */
+        }
+        .daemon-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #8b5cf6; /* Purple for DaemonSet */
+        }
+        .storage-icon {
+            font-size: 2rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #10b981; /* Green for storage */
+        }
+        .node-box {
+            background-color: #f1f5f9;
+            border: 1px solid #94a3b8;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-grow: 1; /* Allows it to take up available space in flex containers */
+        }
+        .node-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #1d4ed8;
+        }
+        .label-box {
+            font-size: 0.8rem;
+            background-color: #f0f9ff;
+            border: 1px solid #bfdbfe;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            white-space: nowrap;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #cbd5e1;
+            padding: 0.75rem;
+            text-align: left;
+        }
+        th {
+            background-color: #e2e8f0;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="scroll-smooth">
+
+    <header class="bg-blue-600 text-white py-6 text-center shadow-md">
+        <div class="container mx-auto px-6">
+            <h1 class="text-3xl md:text-4xl font-bold">Kubernetes StatefulSet ve DaemonSet Detaylı Anlatım</h1>
+            <p class="text-lg mt-2">Kubernetes'te özel iş yüklerini ve dağıtım desenlerini anlayın.</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section id="giris" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Giriş: Özel İş Yükleri İçin Kubernetes Kaynakları</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Kubernetes, `Deployment`lar aracılığıyla durum bilgisiz (stateless) uygulamaları yönetmek için harikadır. Ancak, bazı uygulamaların özel gereksinimleri vardır: örneğin, verilerin kalıcı olması, Pod'ların sabit bir kimliğe sahip olması veya her düğümde belirli bir görevin çalıştırılması gibi. Kubernetes, bu özel iş yükü senaryolarını yönetmek için `StatefulSet` ve `DaemonSet` gibi daha spesifik API objeleri sunar.
+            </p>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Bu belge, `StatefulSet` ve `DaemonSet`'in ne olduğunu, neden kullanıldığını, nasıl çalıştığını, temel özelliklerini ve aralarındaki farkları detaylı bir şekilde açıklayacaktır. Bu kaynaklar, Kubernetes kümelerinizde daha karmaşık ve özelleşmiş uygulama mimarilerini dağıtmanıza olanak tanır.
+            </p>
+        </section>
+
+        <section id="statefulset" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">1. StatefulSet: Durum Bilgisi Olan Uygulamalar İçin</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **StatefulSet**, Kubernetes'te durum bilgisi olan (stateful) uygulamaları (örneğin veritabanları, mesaj kuyrukları, dağıtılmış anahtar-değer depoları) yönetmek için kullanılan bir iş yükü API objesidir. `Deployment`'ların aksine, StatefulSet'ler, Pod'larının kararlı ve benzersiz bir ağ kimliğini (hostname), kalıcı depolama alanını ve sıralı dağıtım/ölçekleme/silme garantisini korumasını sağlar.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Neden ve Ne İşe Yarar?</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Kararlı Ağ Kimliği:** Her Pod'a kararlı bir hostname (örneğin `web-0.example.com`, `web-1.example.com`) ve kalıcı bir DNS adı atar. Bu, Pod'ların yeniden başlatıldığında veya yeniden planlandığında bile aynı kimliği korumasını sağlar.</li>
+                    <li>**Kalıcı Depolama:** Her Pod'a kendi kalıcı depolama birimini (PersistentVolumeClaim - PVC) bağlama garantisi verir. Bu depolama, Pod yeniden başlatılsa veya başka bir düğüme taşınsa bile verilerini korur.</li>
+                    <li>**Sıralı Garanti:** Pod'ların belirli bir sıra dahilinde başlatılmasını, güncellenmesini ve sonlandırılmasını garanti eder (örneğin `web-0` başlamadan `web-1` başlamaz, `web-2` silinmeden `web-1` silinmez). Bu, dağıtılmış veritabanları gibi uygulamaların tutarlılığı için kritiktir.</li>
+                    <li>**Hata Toleransı:** Bir Pod çökerse, StatefulSet kontrolcüsü aynı kimlik ve depolama ile yeni bir Pod başlatır.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Nasıl Çalışır?</h3>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    StatefulSet, Pod'lar için kararlı bir kimlik ve depolama sağlamak üzere `volumeClaimTemplates` ve Pod'ların isimlendirilmesi için sayısal bir indeksleme kullanır. Her Pod'un adı, `[StatefulSet-adı]-[indeks]` formatında olur (örneğin `web-0`, `web-1`). Ölçekleme veya güncelleme durumunda, bu Pod'lar belirli bir sıra (indeks numaralarına göre) izlenerek işlenir.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek YAML:</h3>
+                <pre><code>
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: web-db # StatefulSet adı
+spec:
+  serviceName: "web-db-service" # Pod'ların DNS kaydı için headless Service adı
+  replicas: 3 # 3 adet Pod kopyası
+  selector:
+    matchLabels:
+      app: web-db
+  template:
+    metadata:
+      labels:
+        app: web-db
+    spec:
+      containers:
+      - name: nginx
+        image: k8s.gcr.io/nginx-slim:0.8
+        ports:
+        - containerPort: 80
+          name: web
+        volumeMounts:
+        - name: www # Kalıcı depolama birimini bağla
+          mountPath: /usr/share/nginx/html
+  volumeClaimTemplates: # Her Pod için dinamik olarak PVC oluşturma şablonu
+  - metadata:
+      name: www
+    spec:
+      accessModes: [ "ReadWriteOnce" ] # Tek bir Pod tarafından okunabilir/yazılabilir
+      storageClassName: standard # Kullanılacak StorageClass
+      resources:
+        requests:
+          storage: 1Gi # Her Pod için 1GB depolama alanı isteği
+                </code></pre>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">StatefulSet Akışı</h4>
+                    <div class="flex flex-col items-center justify-center w-full">
+                        <div class="diagram-node">
+                            <span class="stateful-icon">🍊</span>
+                            <div class="label-box">StatefulSet</div>
+                            <p class="text-xs text-gray-700 mt-1">(Replicas: 3)</p>
+                        </div>
+                        <span class="diagram-arrow">↓ Sıralı Oluşturma</span>
+                        <div class="flex items-center justify-center w-full">
+                            <div class="node-box bg-orange-50 border-orange-400">
+                                <span class="pod-icon">📦</span><div class="label-box">web-db-0</div>
+                                <span class="storage-icon">💾</span><div class="label-box">PVC: www-web-db-0</div>
+                            </div>
+                            <span class="diagram-arrow mx-2">⟶</span>
+                            <div class="node-box bg-orange-50 border-orange-400">
+                                <span class="pod-icon">📦</span><div class="label-box">web-db-1</div>
+                                <span class="storage-icon">💾</span><div class="label-box">PVC: www-web-db-1</div>
+                            </div>
+                            <span class="diagram-arrow mx-2">⟶</span>
+                            <div class="node-box bg-orange-50 border-orange-400">
+                                <span class="pod-icon">📦</span><div class="label-box">web-db-2</div>
+                                <span class="storage-icon">💾</span><div class="label-box">PVC: www-web-db-2</div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">StatefulSet, her Pod için kararlı bir kimlik ve kalıcı depolama ile sıralı dağıtım sağlar.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="daemonset" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">2. DaemonSet: Her Düğümde Bir Pod</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **DaemonSet**, Kubernetes kümesindeki her bir düğümde (veya belirlenmiş düğüm alt kümelerinde) Pod'un bir kopyasının çalışmasını garanti eden bir iş yükü API objesidir. Bir düğüm kümeye eklendiğinde, DaemonSet Controller otomatik olarak bu düğüme bir Pod dağıtır. Düğüm kümeden kaldırıldığında ise, DaemonSet tarafından dağıtılan Pod da silinir. DaemonSet'ler, küme altyapısıyla doğrudan etkileşime giren veya her düğümde sürekli çalışması gereken yardımcı servisler (daemons) için idealdir.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Neden ve Ne İşe Yarar?</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Düğüm Başına Bir Kopya:** Log toplayıcıları (örneğin Fluentd, Filebeat), izleme ajanları (örneğin Prometheus Node Exporter), küme depolama sağlayıcıları (örneğin Ceph, GlusterFS) veya ağ proxy'leri (örneğin kube-proxy) gibi her düğümde tek bir örneğin çalışması gereken servisler için kullanılır.</li>
+                    <li>**Otomatik Dağıtım:** Yeni bir düğüm kümeye eklendiğinde veya mevcut bir düğüm yeniden başlatıldığında, ilgili Pod otomatik olarak bu düğüme dağıtılır.</li>
+                    <li>**Sürekli Çalışma Garantisi:** Belirlenen düğümlerde her zaman ilgili Pod'un çalıştığından emin olur.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Nasıl Çalışır?</h3>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    DaemonSet Controller, kümedeki düğümleri sürekli izler. Yeni bir düğümün eklendiğini veya mevcut bir düğümün güncellendiğini algıladığında, DaemonSet'in şablonunu kullanarak uygun bir Pod oluşturur ve bu Pod'u ilgili düğüme atar. Eğer bir düğüm kümeden çıkarılırsa veya DaemonSet tarafından artık hedef alınmıyorsa, ilgili Pod o düğümden silinir. NodeSelector ve toleration'lar kullanılarak Pod'ların sadece belirli düğümlerde çalıştırılması sağlanabilir.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek YAML:</h3>
+                <pre><code>
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluentd-logging
+  labels:
+    app: fluentd
+spec:
+  selector:
+    matchLabels:
+      app: fluentd
+  template:
+    metadata:
+      labels:
+        app: fluentd
+    spec:
+      tolerations: # Tüm düğümlerde çalışabilmek için taint'lere tolerans
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      containers:
+      - name: fluentd-container
+        image: fluent/fluentd-kubernetes-daemonset:v1.14-debian-fluentd-1.14
+        env:
+          - name: FLUENTD_ARGS
+            value: -qq
+        volumeMounts:
+          - name: varlog
+            mountPath: /var/log
+          - name: varlibdockercontainers
+            mountPath: /var/lib/docker/containers
+            readOnly: true
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+                </code></pre>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">DaemonSet Akışı</h4>
+                    <div class="flex items-start justify-center w-full">
+                        <div class="diagram-node">
+                            <span class="daemon-icon">👻</span>
+                            <div class="label-box">DaemonSet</div>
+                            <p class="text-xs text-gray-700 mt-1">(Her Düğümde)</p>
+                        </div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="flex flex-col items-center">
+                            <div class="node-box">
+                                <h5 class="font-semibold text-gray-800">Düğüm 1</h5>
+                                <span class="pod-icon">📦</span><div class="label-box">fluentd-abc</div>
+                            </div>
+                            <div class="node-box mt-4">
+                                <h5 class="font-semibold text-gray-800">Düğüm 2</h5>
+                                <span class="pod-icon">📦</span><div class="label-box">fluentd-def</div>
+                            </div>
+                            <div class="node-box mt-4">
+                                <h5 class="font-semibold text-gray-800">Düğüm N</h5>
+                                <span class="pod-icon">📦</span><div class="label-box">fluentd-xyz</div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">DaemonSet, her düğümde belirlenen Pod'un bir kopyasını çalıştırır.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="karsilastirma" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">StatefulSet ve DaemonSet Karşılaştırması</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                StatefulSet ve DaemonSet, Kubernetes'te farklı amaçlara hizmet eden özel iş yükü kontrolörleridir. Her ikisi de Pod'ları yönetirken, odak noktaları ve davranışları önemli ölçüde farklılık gösterir.
+            </p>
+
+            <div class="overflow-x-auto">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Özellik</th>
+                            <th>StatefulSet</th>
+                            <th>DaemonSet</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>**Ana Amaç**</td>
+                            <td>Durum bilgisi olan (stateful) uygulamaları yönetmek.</td>
+                            <td>Her düğümde veya belirli düğümlerde bir Pod kopyasının çalışmasını garanti etmek.</td>
+                        </tr>
+                        <tr>
+                            <td>**Pod Kimliği**</td>
+                            <td>Kararlı, benzersiz ve sıralı kimlik (hostname, network ID) sağlar.</td>
+                            <td>Önemli değildir, her Pod'un kimliği geçicidir.</td>
+                        </tr>
+                        <tr>
+                            <td>**Depolama**</td>
+                            <td>Her Pod için kalıcı ve kararlı depolama (PVC aracılığıyla) garantisi verir.</td>
+                            <td>Genellikle düğümün yerel diskine veya `hostPath` birimlerine erişir, kalıcı depolama garantisi vermez.</td>
+                        </tr>
+                        <tr>
+                            <td>**Dağıtım Prensibi**</td>
+                            <td>Kontrollü, sıralı dağıtım, ölçekleme ve silme. Pod'lar indeks sırasına göre oluşturulur/silinir.</td>
+                            <td>Her uygun düğüme bir Pod dağıtır. Düğüm sayısına göre Pod sayısı değişir.</td>
+                        </tr>
+                        <tr>
+                            <td>**Hata Durumunda**</td>
+                            <td>Aynı kimlik ve depolama ile Pod'u yeniden başlatır/yeniden planlar.</td>
+                            <td>Pod'u yeniden başlatır/yeniden planlar, ancak Pod kimliği veya depolama bağlılığı yoktur.</td>
+                        </tr>
+                        <tr>
+                            <td>**Örnek Kullanım**</td>
+                            <td>Veritabanları (PostgreSQL, MongoDB, Kafka), dağıtılmış önbellekler (Cassandra), özel kimlik ve depolama gerektiren uygulamalar.</td>
+                            <td>Log toplayıcıları (Fluentd, Filebeat), izleme ajanları (Node Exporter, Datadog Agent), ağ proxy'leri (kube-proxy), depolama sağlayıcıları (Ceph, GlusterFS).</td>
+                        </tr>
+                        <tr>
+                            <td>**Ölçeklendirme**</td>
+                            <td>`replicas` sayısına göre ölçeklenir. Ölçekleme sırasında indeks sırası korunur.</td>
+                            <td>Düğümlerin sayısına göre ölçeklenir. Otomatik olarak yeni düğümlere Pod dağıtır.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="sonuc" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Sonuç</h2>
+            <p class="text-lg text-gray-700 leading-relaxed">
+                Kubernetes, `Deployment`'lar ile durum bilgisiz uygulamalar için güçlü bir standart sunarken, `StatefulSet` ve `DaemonSet` gibi özel iş yükü kontrolörleri, daha karmaşık ve özelleşmiş dağıtım ihtiyaçlarını karşılar.
+            </p>
+            <p class="text-lg text-gray-700 leading-relaxed mt-4">
+                **StatefulSet**, veritabanları gibi durum bilgisi olan uygulamalar için kararlı kimlik, kalıcı depolama ve sıralı operasyonlar sağlayarak bu tür iş yüklerinin Kubernetes üzerinde güvenle çalışmasını mümkün kılar. Öte yandan, **DaemonSet**, her düğümde belirli bir Pod'un çalıştığından emin olmak için tasarlanmıştır ve genellikle küme altyapısının ayrılmaz bir parçası olan yardımcı servisler için kullanılır.
+            </p>
+            <p class="text-lg text-gray-700 leading-relaxed mt-4">
+                Bu iki kaynağın farklı kullanım alanlarını ve çalışma prensiplerini anlamak, Kubernetes kümelerinizde doğru uygulama deseni seçimi yapmanız ve dağıtımlarınızı optimize etmeniz için hayati öneme sahiptir.
+            </p>
+        </section>
+    </main>
+    
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2025 Kubernetes İş Yükleri Anlatım. Tüm hakları saklıdır.</p>
+            <p class="text-sm text-gray-400 mt-2">Bu belge, Kubernetes'teki StatefulSet ve DaemonSet kavramlarını detaylı açıklamak amacıyla oluşturulmuştur.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
