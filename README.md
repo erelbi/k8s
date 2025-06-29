@@ -42,7 +42,10 @@ firefox index.html # Linux (veya tercih ettiğiniz tarayıcı)
 ```
 
 Gezinin: Ana sayfadaki bağlantılar aracılığıyla farklı Kubernetes konularına dair detaylı belgelere erişebilirsiniz. Çoğu belgede, konu başlıklarına hızlı geçiş sağlayan gezinme menüleri ve dahili bağlantılar bulunmaktadır.
-Katkıda Bulunma
+
+### Katkıda Bulunma
+
 Bu projenin gelişimine katkıda bulunmak isteyen herkesi bekliyoruz! Hata düzeltmeleri, yeni konular, mevcut açıklamaları iyileştirme veya yeni görseller ekleme gibi her türlü katkı memnuniyetle karşılanır. Lütfen bir Pull Request (Çekme İsteği) oluşturarak veya bir sorun (Issue) bildirerek iletişime geçin.
-Lisans
+### Lisans
+
 Bu proje MIT Lisansı altında yayımlanmıştır. Bu lisans, yazılımın kullanımına, kopyalanmasına, değiştirilmesine, birleştirilmesine, yayımlanmasına, dağıtılmasına, alt lisanslanmasına ve/veya satılmasına izin verir. Daha fazla bilgi için lütfen MIT Lisansı metnine bakın.
