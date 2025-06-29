@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes Bileşenleri Detaylı Anlatım</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Cool Neutrals & Tech Blue -->
+    <!-- Application Structure Plan: This single HTML file is structured as a comprehensive, static document focusing specifically on Kubernetes control plane and worker node components. It is divided into logical sections for each main component group, with individual subsections detailing each component. The content is presented linearly with clear headings and descriptive paragraphs, augmented by a summary table for quick reference. This structure is chosen to facilitate easy reading and understanding of complex technical details without requiring active user interaction, serving as a dedicated reference guide. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Kubernetes Architecture Components (etcd, kube-apiserver, kube-scheduler, kube-controller-manager, cloud-controller-manager, kubelet, kube-proxy, Container Runtime). Goal: Inform/Organize. Viz/Method: Extensive textual descriptions for each component, organized under clear headings. A comprehensive summary table is included for quick overview. Additionally, static block diagrams using HTML/CSS (Tailwind Flexbox/Grid) and Unicode characters are added to visualize the Control Plane and Worker Node structures and component relationships. Interaction: Static document for reading. Justification: Provides in-depth explanations and enhances understanding through visual aids without dynamic interaction, serving as a detailed reference. Method: Pure HTML/Tailwind for structured text, table, and block diagrams.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1f2937;
+        }
+        .section-header {
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .component-card {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 1.5rem;
+        }
+        .diagram-container {
+            background-color: #e2f0ff; /* Light blue for diagrams */
+            border: 1px solid #bfdfff;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .node-box {
+            background-color: #fff;
+            border: 2px solid #3b82f6;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 0.5rem;
+            width: 100%;
+            max-width: 300px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .node-component {
+            background-color: #e0f2fe;
+            border: 1px solid #93c5fd;
+            border-radius: 0.375rem;
+            padding: 0.5rem 1rem;
+            margin: 0.3rem 0;
+            font-size: 0.875rem;
+            font-weight: 500;
+            width: 90%;
+            text-align: center;
+        }
+        .arrow {
+            font-size: 1.5rem;
+            color: #2563eb;
+            margin: 0.5rem 0;
+        }
+        .cluster-overview {
+            border: 2px dashed #9ca3af;
+            border-radius: 1rem;
+            padding: 2rem;
+            background-color: #f1f5f9;
+            margin-bottom: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .cluster-node-representation {
+            background-color: #fff;
+            border: 2px solid #10b981;
+            border-radius: 0.75rem;
+            padding: 1rem 2rem;
+            margin: 1rem;
+            font-weight: 600;
+            color: #065f46;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="scroll-smooth">
+
+    <header class="bg-blue-600 text-white py-6 text-center shadow-md">
+        <div class="container mx-auto px-6">
+            <h1 class="text-3xl md:text-4xl font-bold">Kubernetes Bileşenleri: Detaylı Anlatım</h1>
+            <p class="text-lg mt-2">Kubernetes kümesini oluşturan her bir temel bileşeni ayrı ayrı keşfedin.</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section id="giris" class="mb-12">
+            <p class="text-lg text-gray-700 leading-relaxed">Bu belge, Kubernetes kümesinin kalbini oluşturan temel bileşenlerin her birini detaylı bir şekilde açıklamaktadır. Kontrol Düzlemi (Master Node) ve Çalışan Düğüm (Worker Node) bileşenlerinin görevlerini, önemlerini ve birbirleriyle nasıl etkileşim kurduklarını daha derinlemesine anlamak için bu rehberi kullanabilirsiniz.</p>
+            <p class="text-lg text-gray-700 leading-relaxed mt-4">Kubernetes'in modüler yapısı sayesinde her bir bileşen belirli bir görevi yerine getirir ve bu bileşenlerin uyumlu çalışması, konteynerli uygulamaların otomatik dağıtımını, ölçeklendirilmesini ve yönetimini mümkün kılar.</p>
+        </section>
+
+        <section id="kume-genel-bakis" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Kubernetes Kümesine Genel Bakış</h2>
+            <p class="text-gray-700 mb-6 leading-relaxed">Kubernetes kümesi, Master Node ve Worker Node'lardan oluşan dağıtılmış bir sistemdir. İşte bu yapının basitleştirilmiş bir görseli:</p>
+            <div class="cluster-overview">
+                <p class="text-2xl font-bold text-gray-800 mb-4">Kubernetes Kümesi</p>
+                <div class="flex flex-col md:flex-row items-center justify-center w-full">
+                    <div class="cluster-node-representation border-blue-600 text-blue-800">
+                        Kontrol Düzlemi (Master Node)
+                    </div>
+                    <div class="md:mx-8 my-4 md:my-0 text-xl text-blue-600">⇌</div>
+                    <div class="flex flex-col md:flex-row">
+                        <div class="cluster-node-representation border-green-600 text-green-800">
+                            Çalışan Düğüm 1
+                        </div>
+                        <div class="cluster-node-representation border-green-600 text-green-800">
+                            Çalışan Düğüm N
+                        </div>
+                    </div>
+                </div>
+                <p class="text-sm text-gray-500 mt-4">Kontrol düzlemi, kümenin yönetimini üstlenirken, çalışan düğümler uygulamaları yürütür.</p>
+            </div>
+        </section>
+
+        <section id="kontrol-duzlemi-bilesenleri" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Kontrol Düzlemi (Master Node) Bileşenleri</h2>
+            <p class="text-gray-700 mb-6 leading-relaxed">Kontrol düzlemi, kümenin beyni gibidir. Kümenin genel durumunu yönetir ve iş yüklerinin doğru şekilde dağıtılmasını sağlar. Bu bileşenler, kümenin kararlılığı ve işleyişi için hayati öneme sahiptir.</p>
+
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Kontrol Düzlemi İç Mimarisi</h3>
+            <div class="diagram-container">
+                <p class="text-lg font-semibold text-gray-800 mb-4">Kontrol Düzlemi (Master Node)</p>
+                <div class="node-box border-blue-600">
+                    <div class="node-component bg-blue-100">kube-apiserver</div>
+                    <div class="arrow">↓</div>
+                    <div class="node-component bg-blue-100">etcd</div>
+                    <div class="arrow">↓</div>
+                    <div class="flex justify-around w-full mt-2">
+                        <div class="node-component bg-blue-100 w-1/2 mx-1">kube-scheduler</div>
+                        <div class="node-component bg-blue-100 w-1/2 mx-1">kube-controller-manager</div>
+                    </div>
+                    <div class="node-component bg-blue-100 mt-2">cloud-controller-manager (isteğe bağlı)</div>
+                </div>
+                <p class="text-sm text-gray-500 mt-4">API sunucusu merkezde yer alırken, diğer bileşenler etcd'den bilgi alır ve küme durumunu yönetir.</p>
+            </div>
+
+            <div class="component-card">
+                <h3 class="text-xl font-bold text-blue-700 mb-2">etcd</h3>
+                <p class="text-gray-700 leading-relaxed">etcd, Kubernetes kümesindeki tüm yapılandırma verilerini, kümenin durumunu ve diğer kalıcı bilgileri depolayan, dağıtılmış, tutarlı ve yüksek erişilebilirliğe sahip bir anahtar-değer (key-value) deposudur. Kümedeki tüm bileşenlerin güncel bilgilere göre kendilerini yapılandırmasına yardımcı olur. Tüm Kubernetes düğümlerinin etcd'ye erişebilmesi gereklidir ve etcd, kümenin tek doğruluk kaynağı olarak işlev görür. Herhangi bir Kubernetes nesnesi (Pod, Deployment, Service vb.) oluşturulduğunda veya güncellendiğinde, bu değişiklikler etcd'ye kaydedilir.</p>
+                <p class="text-gray-600 text-sm mt-3 font-semibold">Rolü: Kümenin beyni ve tek doğruluk kaynağı.</p>
+            </div>
+
+            <div class="component-card">
+                <h3 class="text-xl font-bold text-blue-700 mb-2">kube-apiserver</h3>
+                <p class="text-gray-700 leading-relaxed">kube-apiserver, Kubernetes küme mekanizmasının merkezinde yer alır ve tüm kümenin ana yönetim noktasıdır. Hem içeriden (diğer kontrol düzlemi bileşenleri, kubelet) hem de dışarıdan (kubectl komut satırı aracı, API istemcileri) gelen tüm API isteklerini kabul eder, doğrular ve işler. etcd veritabanına yapılan tek bağlantı bu araç üzerinden gerçekleşir, bu da tutarlı bir durum yönetimini garanti eder. Tüm yönetim ve orkestrasyon işlemleri kube-apiserver aracılığıyla yürütülür.</p>
+                <p class="text-gray-600 text-sm mt-3 font-semibold">Rolü: Kümenin giriş kapısı ve merkezi iletişim noktası.</p>
+            </div>
+
+            <div class="component-card">
+                <h3 class="text-xl font-bold text-blue-700 mb-2">kube-scheduler</h3>
+                <p class="text-gray-700 leading-relaxed">kube-scheduler, yeni oluşturulan Pod'ları izler ve hangi düğümde (Worker Node) çalışacaklarını belirler. Bu kararı verirken iş yükünün gereksinimlerini (CPU, bellek, depolama gibi kaynaklar), mevcut altyapıyı (düğümlerin kapasitesi, taint ve tolerasyonlar, label'lar, düğüm üzerinde coğrafi kısıtlamalar) ve Pod'lar arası affinite/anti-affinite kurallarını dikkate alır. İş yüklerinin mevcut kaynaklardan daha fazla gereksinimi olmadığından emin olmak için her ana bilgisayardaki kullanılabilir kapasitenin izlenmesinden sorumludur. Bir Pod uygun bir düğüme konuşlandırılana kadar bu işlem devam eder.</p>
+                <p class="text-gray-600 text-sm mt-3 font-semibold">Rolü: Akıllı iş yükü dağıtıcısı.</p>
+            </div>
+
+            <div class="component-card">
+                <h3 class="text-xl font-bold text-blue-700 mb-2">kube-controller-manager</h3>
+                <p class="text-gray-700 leading-relaxed">kube-controller-manager, Kubernetes kümesinin durumunu düzenleyen ve iş yükü yaşam döngülerini yöneten farklı denetleyicileri (Controller) yönetir. Birden fazla denetleyicinin tek bir ikili içinde toplanmış halidir. Örneğin, `ReplicaSet Controller`, bir uygulamanın kaç adet Pod ile çalışacağını belirler ve bu sayıyı otomatik olarak korur; eğer bir Pod başarısız olursa, denetleyici yeni bir Pod başlatır. API sunucusu üzerinden değişiklikleri sürekli izler ve istenen durumu (bildirimsel olarak tanımlanan) sağlamak için prosedürleri uygular. Bu, bir uygulamanın yukarı veya aşağı ölçeklendirilmesini, uç noktaların (endpoints) ayarlanmasını içerebilir.</p>
+                <p class="text-gray-600 text-sm mt-3 font-semibold">Rolü: Kümenin durumunu koruyan otomatik pilot.</p>
+            </div>
+
+            <div class="component-card">
+                <h3 class="text-xl font-bold text-blue-700 mb-2">cloud-controller-manager (isteğe bağlı)</h3>
+                <p class="text-gray-700 leading-relaxed">cloud-controller-manager, Kubernetes'in Google Cloud Platform (GCP), AWS, Azure gibi bulut sağlayıcılarıyla entegre çalışmasını sağlar. Bu bileşen, buluta özgü kontrol mantığını Kubernetes çekirdek kodundan ayırır. Örneğin, bir `LoadBalancer` Servis türü oluşturulduğunda, `cloud-controller-manager` ilgili bulut sağlayıcısında bir yük dengeleyici provision eder. Bu, bulut sağlayıcılarının sunduğu altyapı rotaları, yük dengeleme ve depolama birimleri gibi ekstra özelliklerin Kubernetes içinde tutarlı bir şekilde kullanılmasını mümkün kılar.</p>
+                <p class="text-gray-600 text-sm mt-3 font-semibold">Rolü: Bulut sağlayıcılarla köprü kurar.</p>
+            </div>
+        </section>
+
+        <section id="calisan-dugum-bilesenleri" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Çalışan Düğüm (Worker Node) Bileşenleri</h2>
+            <p class="text-gray-700 mb-6 leading-relaxed">Çalışan düğümler, Master Node'dan aldıkları talimatlarla konteynerli uygulamaları fiilen çalıştıran ve yöneten makinelerdir. Her bir çalışan düğüm, iş yüklerini sorunsuz bir şekilde yürütmek için aşağıdaki bileşenlere ihtiyaç duyar.</p>
+
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Çalışan Düğüm İç Mimarisi</h3>
+            <div class="diagram-container">
+                <p class="text-lg font-semibold text-gray-800 mb-4">Çalışan Düğüm (Worker Node)</p>
+                <div class="node-box border-green-600">
+                    <div class="node-component bg-green-100">kubelet</div>
+                    <div class="arrow">↓</div>
+                    <div class="node-component bg-green-100">Container Runtime</div>
+                    <div class="arrow">↓</div>
+                    <div class="node-component bg-green-100">kube-proxy</div>
+                </div>
+                <p class="text-sm text-gray-500 mt-4">Kubelet, Master Node ile iletişim kurar ve konteyner çalışma zamanını yönetir.</p>
+            </div>
+
+            <div class="component-card">
+                <h3 class="text-xl font-bold text-green-700 mb-2">kubelet</h3>
+                <p class="text-gray-700 leading-relaxed">kubelet, her çalışan düğümde (Worker Node) bulunan ana ajandır. Kontrol Düzlemi'nden (özellikle kube-apiserver'dan) gelen komutları alır ve Pod özelliklerini (YAML veya JSON dosyaları) işler. Temel görevi, düğümde çalışması gereken Pod'ların gerçekten çalıştığından ve sağlıklı olduğundan emin olmak için konteyner çalışma zamanı ile etkileşime girmektir. Ayrıca, Pod'ların depolama (Volume), sır (Secret) veya yapılandırma haritaları (ConfigMap) gibi kaynaklara erişimini sağlar. Kubelet, düğümün ve üzerindeki Pod'ların durumunu Master Node'a bildirir.</p>
+                <p class="text-gray-600 text-sm mt-3 font-semibold">Rolü: Düğümdeki orkestra şefi.</p>
+            </div>
+
+            <div class="component-card">
+                <h3 class="text-xl font-bold text-green-700 mb-2">kube-proxy</h3>
+                <p class="text-gray-700 leading-relaxed">kube-proxy, her düğümde çalışan bir ağ proxy'sidir. Temel görevi, Kubernetes servisleri için ağ kurallarını yönetmek ve küme içindeki ve dışındaki trafiği doğru Pod'lara yönlendirmektir. Bu işlemi genellikle `iptables` kuralları veya IPVS (IP Virtual Server) kullanarak yapar. kube-proxy, bir Servis'in sanal IP'sine gelen istekleri, o Servis'in arkasındaki uygun Pod'lardan birine yük dengeleme yaparak iletir. Bu sayede, Pod'ların IP adresleri değişse bile, Servisler üzerinden uygulamalara istikrarlı bir şekilde erişim sağlanır.</p>
+                <p class="text-gray-600 text-sm mt-3 font-semibold">Rolü: Küme içi trafik polisi ve basit yük dengeleyici.</p>
+            </div>
+
+            <div class="component-card">
+                <h3 class="text-xl font-bold text-green-700 mb-2">Container Runtime (Konteyner Çalışma Zamanı)</h3>
+                <p class="text-700 leading-relaxed">Container Runtime, konteynerleri fiilen çalıştıran yazılımdır. Konteyner imajlarını çeker, konteynerleri başlatır, durdurur ve yönetir. Kubelet'ten aldığı talimatlarla bu işlemleri gerçekleştirir. En bilinen ve yaygın kullanılan konteyner çalışma zamanı Docker olsa da, containerd ve CRI-O gibi diğer konteyner çalışma zamanları da Kubernetes tarafından desteklenir. Kubernetes, Container Runtime Interface (CRI) adı verilen bir arayüz tanımlayarak, farklı konteyner çalışma zamanlarının Kubernetes ile entegre olabilmesini sağlar.</p>
+                <p class="text-gray-600 text-sm mt-3 font-semibold">Rolü: Konteynerlerin motoru.</p>
+            </div>
+        </section>
+
+        <section id="ozet-tablo" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Tüm Bileşenlerin Özeti</h2>
+            <p class="text-gray-700 mb-6 leading-relaxed">Aşağıdaki tablo, Kubernetes kümesinin tüm temel bileşenlerini ve ana görevlerini hızlı bir bakışla özetlemektedir.</p>
+            <div class="overflow-x-auto">
+                <table class="min-w-full bg-white rounded-lg shadow-sm text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-gray-200 text-gray-700 uppercase text-left">
+                            <th class="py-3 px-4 border-b border-gray-300">Bileşen Tipi</th>
+                            <th class="py-3 px-4 border-b border-gray-300">Bileşen Adı</th>
+                            <th class="py-3 px-4 border-b border-gray-300">Görevi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="py-3 px-4 border-b border-gray-200" rowspan="5">Kontrol Düzlemi</td>
+                            <td class="py-3 px-4 border-b border-gray-200">etcd</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Kümenin tüm yapılandırma verilerini ve durumunu depolayan dağıtılmış anahtar-değer deposu.</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 border-b border-gray-200">kube-apiserver</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Küme için merkezi yönetim noktası; gelen istekleri işler, doğrular ve etcd ile bağlantı kurar.</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 border-b border-gray-200">kube-scheduler</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Yeni Pod'ları izler ve iş yükü gereksinimlerine göre uygun çalışan düğümlere yerleştirir.</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 border-b border-gray-200">kube-controller-manager</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Kümenin istenen durumunu korumak için çeşitli denetleyicileri yönetir.</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 border-b border-gray-200">cloud-controller-manager</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Bulut sağlayıcılarıyla entegrasyonu sağlar, buluta özgü özellikleri yönetir (yük dengeleyiciler, ağlar).</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 border-b border-gray-200" rowspan="3">Çalışan Düğüm</td>
+                            <td class="py-3 px-4 border-b border-gray-200">kubelet</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Düğümdeki Pod'ların çalıştığından emin olur, Master Node'dan komut alır.</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 border-b border-gray-200">kube-proxy</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Küme içi ağ iletişimi ve Servis keşfi için ağ kurallarını yönetir.</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 border-b border-gray-200">Container Runtime</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Konteynerleri fiilen çalıştıran yazılım (örn. Docker, containerd).</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+    
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2025 Kubernetes Bileşenleri Anlatım. Tüm hakları saklıdır.</p>
+            <p class="text-sm text-gray-400 mt-2">Bu belge, Kubernetes bileşenlerini daha detaylı açıklamak amacıyla oluşturulmuştur.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
