@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes Job ve CronJob: Görev Yönetimi Detayları</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Tech Blue, Gray, Light Green (Success), Orange (Task) -->
+    <!-- Application Structure Plan: This standalone HTML document details Kubernetes Job and CronJob resources. It begins with an introduction to batch jobs in Kubernetes, followed by dedicated sections for Job and CronJob. Each section explains its purpose, how it works, and use cases, supported by conceptual HTML/CSS diagrams and YAML examples. A comprehensive comparison table highlights their key differences and a conclusion summarizes their roles. The linear structure ensures a clear and detailed understanding. -->
+    <!-- Visualization & Content Choices: 
+        - Job Flow Diagram: HTML/CSS diagram illustrating a Job creating Pods until completion. Goal: Explain Job's one-time execution.
+        - CronJob Flow Diagram: HTML/CSS diagram showing a CronJob scheduling Jobs periodically. Goal: Explain CronJob's scheduled execution.
+        - Comparison Table: Summarizes key aspects, execution types, and use cases for Job vs. CronJob. Goal: Compare/Inform.
+        - All diagrams use plain HTML/CSS (Tailwind for layout, simple boxes and Unicode characters for icons/arrows).
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1f2937;
+        }
+        .section-header {
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .content-card {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+        }
+        pre {
+            background-color: #1f2937;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-family: 'monospace', 'Inter';
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .diagram-box {
+            background-color: #e0f2fe; /* Light blue for diagram backgrounds */
+            border: 1px solid #93c5fd;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: 100%;
+            max-width: 800px; /* Max width for diagrams */
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .diagram-node {
+            background-color: #fff;
+            border: 1px solid #3b82f6;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+        }
+        .diagram-arrow {
+            font-size: 1.5rem;
+            color: #2563eb;
+            margin: 0.2rem 0;
+        }
+        .task-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #f97316; /* Orange for tasks */
+        }
+        .scheduler-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #8b5cf6; /* Purple for scheduler */
+        }
+        .success-box {
+            background-color: #d1fae5;
+            border: 1px solid #34d399;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+            color: #065f46;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #cbd5e1;
+            padding: 0.75rem;
+            text-align: left;
+        }
+        th {
+            background-color: #e2e8f0;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="scroll-smooth">
+
+    <header class="bg-blue-600 text-white py-6 text-center shadow-md">
+        <div class="container mx-auto px-6">
+            <h1 class="text-3xl md:text-4xl font-bold">Kubernetes Job ve CronJob: Görev Yönetimi Detayları</h1>
+            <p class="text-lg mt-2">Tek seferlik ve zamanlanmış görevlerin Kubernetes'te nasıl yönetildiğini öğrenin.</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section id="giris" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Giriş: Kubernetes'te Batch İş Yükleri</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Kubernetes, genellikle sürekli çalışan, uzun ömürlü uygulamaları (örneğin web sunucuları, API'ler) yönetmek için kullanılır. Ancak, birçok senaryoda, bir kez çalışıp biten veya belirli aralıklarla çalışan görevlere (batch jobs) ihtiyaç duyulur. Örnek olarak, veri yedekleme, rapor oluşturma, veri analizi veya veritabanı temizliği gibi işlemler verilebilir.
+            </p>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Kubernetes, bu tür batch iş yüklerini yönetmek için iki ana kaynak sağlar:
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Job:** Bir veya daha fazla Pod'un başarılı bir şekilde tamamlanmasını sağlayan tek seferlik görevler için kullanılır.</li>
+                    <li>**CronJob:** Belirli bir zaman çizelgesine (cron formatında) göre Job'ları düzenli olarak çalıştıran zamanlanmış görevler için kullanılır.</li>
+                </ul>
+                Bu belgede, bu iki kaynağı detaylı bir şekilde inceleyeceğiz ve kullanım durumlarını, çalışma prensiplerini ve aralarındaki farkları görseller ve YAML örnekleriyle açıklayacağız.
+            </p>
+        </section>
+
+        <section id="job" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">1. Job</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    Bir **Job**, Kubernetes'te bir görevin başarılı bir şekilde tamamlandığını garanti eden bir denetleyicidir. Bir Job oluşturduğunuzda, Kubernetes bir veya daha fazla Pod başlatır ve bu Pod'ların görevi tamamlamasını bekler. Eğer bir Pod başarısız olursa (örneğin uygulama bir hata koduyla çıkar veya bir düğüm çökerse), Job denetleyicisi varsayılan olarak bu Pod'u yeniden başlatır veya başka bir düğüme yeniden planlar. Job, belirtilen sayıda Pod'un başarıyla tamamlanmasını sağlayana kadar Pod'ları oluşturmaya devam eder.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Neden ve Ne İşe Yarar?</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Tek Seferlik Görevler:** Uzun süreli çalışması gerekmeyen, bir kez çalışıp biten görevler için kullanılır.</li>
+                    <li>**Hata Toleransı:** Bir Pod'un başarısız olması durumunda otomatik yeniden deneme ve yeniden planlama yeteneği sunar.</li>
+                    <li>**Paralel Çalıştırma:** Aynı görevin birden fazla kopyasını paralel olarak çalıştırma yeteneği sağlar (örneğin, büyük bir veri setini parçalar halinde işleme).</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Temel Özellikleri:</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>`spec.completions`: İşin kaç kez başarılı bir şekilde tamamlanması gerektiğini belirtir.</li>
+                    <li>`spec.parallelism`: Aynı anda kaç Pod'un çalışmasına izin verileceğini belirtir.</li>
+                    <li>`spec.backoffLimit`: Bir Job'un başarısız denemelerden sonra kaç kez yeniden denenmesi gerektiğini belirtir.</li>
+                    <li>`spec.activeDeadlineSeconds`: İşin tamamlanması için izin verilen maksimum süreyi belirtir. Bu süreyi aşarsa, iş ve tüm çalışan Pod'ları sonlandırılır.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek YAML:</h3>
+                <pre><code>
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tek-seferlik-gorev
+spec:
+  template:
+    metadata:
+      name: tek-seferlik-gorev-pod
+    spec:
+      containers:
+      - name: batch-container
+        image: alpine/git:latest # Örnek bir imaj
+        command: ["sh", "-c", "echo 'Görev başlatıldı!'; sleep 10; echo 'Görev tamamlandı!';"]
+      restartPolicy: OnFailure # Pod başarısız olursa yeniden başlat
+  completions: 1 # Görevin bir kez başarıyla tamamlanmasını bekle
+  backoffLimit: 4 # Başarısızlık durumunda 4 defaya kadar yeniden dene
+                </code></pre>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">Job Çalışma Akışı</h4>
+                    <div class="flex flex-col items-center justify-center w-full">
+                        <div class="diagram-node">
+                            <span class="task-icon">⚙️</span>
+                            <div class="pod-label">Job Tanımı</div>
+                        </div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="flex items-center">
+                            <div class="diagram-node">
+                                <span class="task-icon">📦</span>
+                                <div class="pod-label">Pod Başlat</div>
+                            </div>
+                            <span class="diagram-arrow mx-2">🔁</span>
+                            <div class="diagram-node">
+                                <span class="task-icon">❌</span>
+                                <div class="pod-label">Hata/Çökme</div>
+                            </div>
+                        </div>
+                        <span class="diagram-arrow">↓</span>
+                        <div class="success-box">
+                            <span class="task-icon text-green-600">✅</span>
+                            <div class="pod-label text-green-800">Görev Başarılı</div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">Job, Pod'ları başlatır, başarısızlık durumunda yeniden dener ve görev tamamlanana kadar çalışır.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="cronjob" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">2. CronJob</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    Bir **CronJob**, belirli bir zaman çizelgesine (cron formatında) göre `Job` nesnelerini otomatik olarak oluşturan bir Kubernetes kaynağıdır. Tıpkı Linux/Unix sistemlerindeki `cron` işlevine benzer şekilde çalışır, ancak Kubernetes kümeleri içinde konteynerize edilmiş görevler için tasarlanmıştır. CronJob'lar, düzenli olarak tekrarlanan, zamanlanmış iş yükleri için idealdir.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Neden ve Ne İşe Yarar?</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Zamanlanmış Görevler:** Günlük yedeklemeler, haftalık rapor oluşturma, veri senkronizasyonu gibi düzenli aralıklarla çalışması gereken görevler için kullanılır.</li>
+                    <li>**Otomatik Tetikleme:** Belirtilen zaman çizelgesine göre Job'ları otomatik olarak tetikler.</li>
+                    <li>**Merkezi Yönetim:** Tüm zamanlanmış görevleri Kubernetes kümesi içinde tek bir yerden yönetmenizi sağlar.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Temel Özellikleri:</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>`spec.schedule`: İşin ne zaman çalışacağını belirten cron formatındaki ifade (örneğin `"0 0 * * *"` her gece yarısı).</li>
+                    <li>`spec.jobTemplate`: CronJob'un her tetiklendiğinde oluşturacağı Job'un şablonu.</li>
+                    <li>`spec.concurrencyPolicy`: Aynı anda birden fazla Job'un çalışmasına izin verilip verilmeyeceğini belirler (`Allow`, `Forbid`, `Replace`).</li>
+                    <li>`spec.successfulJobsHistoryLimit`: Tamamlanmış Job'lardan kaç tanesinin saklanacağını belirtir.</li>
+                    <li>`spec.failedJobsHistoryLimit`: Başarısız Job'lardan kaç tanesinin saklanacağını belirtir.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek YAML:</h3>
+                <pre><code>
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: veritabani-yedekleme
+spec:
+  schedule: "0 0 * * *" # Her gün gece yarısı (00:00) çalıştır
+  jobTemplate: # Bu CronJob'un oluşturacağı Job'un şablonu
+    spec:
+      template:
+        spec:
+          containers:
+          - name: yedekleme-container
+            image: postgres:latest # Örnek bir veritabanı imajı
+            command: ["pg_dump", "-h", "postgres-service", "-U", "admin", "-Fc", "-f", "/backup/db.bak", "mydb"]
+            volumeMounts:
+            - name: yedekleme-depolama
+              mountPath: /backup
+          restartPolicy: OnFailure
+          volumes:
+          - name: yedekleme-depolama
+            persistentVolumeClaim:
+              claimName: yedekleme-pvc # Kalıcı depolama talebi
+  concurrencyPolicy: Forbid # Bir önceki Job hala çalışıyorsa yeni Job'u başlatma
+  successfulJobsHistoryLimit: 3 # Son 3 başarılı Job'u sakla
+  failedJobsHistoryLimit: 1 # Son 1 başarısız Job'u sakla
+                </code></pre>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">CronJob Çalışma Akışı</h4>
+                    <div class="flex items-center justify-center w-full">
+                        <div class="diagram-node">
+                            <span class="scheduler-icon">⏰</span>
+                            <div class="pod-label">CronJob Tanımı</div>
+                            <p class="text-xs mt-1">(* * * * *)</p>
+                        </div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="flex flex-col items-center">
+                            <div class="diagram-node">
+                                <span class="task-icon">⚙️</span>
+                                <div class="pod-label">Job Oluştur</div>
+                            </div>
+                            <span class="diagram-arrow mt-2">↓</span>
+                            <div class="success-box">
+                                <span class="task-icon text-green-600">✅</span>
+                                <div class="pod-label text-green-800">Job Çalışır/Biter</div>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="diagram-arrow my-4">🔁 (Zamanlanmış)</span>
+                    <p class="text-sm text-gray-500 mt-4">CronJob, belirlenen zaman aralıklarında Job'ları otomatik olarak oluşturur.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="karsilastirma" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Job ve CronJob Karşılaştırması</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                `Job` ve `CronJob` birbirini tamamlayan iki Kubernetes kaynağıdır. `Job` tek bir görevin tamamlanmasını sağlarken, `CronJob` bu Job'ların düzenli olarak çalıştırılmasını zamanlar.
+            </p>
+            <div class="overflow-x-auto">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Özellik</th>
+                            <th>Job</th>
+                            <th>CronJob</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>**Ana Amaç**</td>
+                            <td>Bir görevin başarıyla tamamlandığını garanti etmek (tek seferlik).</td>
+                            <td>Belirli bir zaman çizelgesine göre Job'ları çalıştırmak (zamanlanmış).</td>
+                        </tr>
+                        <tr>
+                            <td>**Çalışma Sıklığı**</td>
+                            <td>Bir kez çalışır ve tamamlandığında durur.</td>
+                            <td>Cron formatında belirtilen aralıklarla (örneğin her saat, her gün) tekrar tekrar çalışır.</td>
+                        </tr>
+                        <tr>
+                            <td>**Yaşam Döngüsü**</td>
+                            <td>Pod'lar başarılı bir şekilde tamamlandığında kendiliğinden sona erer.</td>
+                            <td>Sürekli çalışır ve zaman çizelgesine göre Job'lar oluşturur. Silinene kadar varlığını sürdürür.</td>
+                        </tr>
+                        <tr>
+                            <td>**Hata Yönetimi**</td>
+                            <td>İçindeki Pod'ların hatalı çıkışında yeniden deneme yapar.</td>
+                            <td>Job'ların oluşturulması ve zamanlamasıyla ilgilenir. Job'un kendi hata yönetimi mekanizması vardır.</td>
+                        </tr>
+                        <tr>
+                            <td>**Kontrol Edilen Birim**</td>
+                            <td>Pod'ları kontrol eder ve yönetir.</td>
+                            <td>Job'ları kontrol eder ve yönetir.</td>
+                        </tr>
+                        <tr>
+                            <td>**Uygulama Alanı**</td>
+                            <td>Veri dönüştürme, tek seferlik komut çalıştırma, kısa süreli hesaplamalar.</td>
+                            <td>Veritabanı yedekleme, rapor oluşturma, periyodik temizlik, sistem izleme kontrolleri.</td>
+                        </tr>
+                        <tr>
+                            <td>**Örnek Komut**</td>
+                            <td>`kubectl create -f my-job.yaml`</td>
+                            <td>`kubectl create -f my-cronjob.yaml`</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="sonuc" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Sonuç</h2>
+            <p class="text-lg text-gray-700 leading-relaxed">
+                Kubernetes'teki `Job` ve `CronJob` kaynakları, küme içinde batch iş yüklerini yönetmek için temel araçlardır. `Job`, bir görevin başarıyla tamamlanmasını garanti eden tek seferlik işlemler için idealdir ve Pod hatalarına karşı dayanıklılık sağlar. Öte yandan, `CronJob`, bu Job'ları belirli bir zaman çizelgesine göre düzenli olarak çalıştırma yeteneği sunar, böylece otomasyon ve bakım görevleri kolayca yönetilebilir. Bu iki kaynağı doğru bir şekilde kullanarak, Kubernetes kümelerinizde hem uzun süreli uygulamaları hem de tek seferlik veya periyodik görevleri verimli bir şekilde çalıştırabilirsiniz, bu da operasyonel esnekliği ve verimliliği önemli ölçüde artırır.
+            </p>
+        </section>
+    </main>
+    
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2025 Kubernetes Görev Yönetimi. Tüm hakları saklıdır.</p>
+            <p class="text-sm text-gray-400 mt-2">Bu belge, Kubernetes'teki Job ve CronJob kavramlarını detaylı açıklamak amacıyla oluşturulmuştur.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
