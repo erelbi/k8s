@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes Otomatik Ölçeklendirme: HPA ve VPA Detaylı Anlatım</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Tech Blue, Gray, Green (Scale Up), Red (Scale Down), Orange (Metrics), Purple (Autoscaler) -->
+    <!-- Application Structure Plan: This standalone HTML document is dedicated to Kubernetes Horizontal Pod Autoscaler (HPA) and Vertical Pod Autoscaler (VPA). It begins with an introduction to automatic scaling, then dedicates sections to HPA and VPA respectively. Each section explains "what it is," "why it's used," "how it works," and "key considerations," supported by conceptual HTML/CSS diagrams and YAML examples. A comprehensive comparison section highlights their differences, similarities, and combined use cases using a table. The linear structure aims for clear and detailed understanding of these critical scaling mechanisms. -->
+    <!-- Visualization & Content Choices: 
+        - General Scaling Concept Diagram: HTML/CSS diagram showing Pods scaling up/down. Goal: Illustrate basic scaling.
+        - HPA Flow Diagram: HTML/CSS diagram showing HPA watching metrics and adjusting replica count. Goal: Explain HPA's horizontal scaling.
+        - VPA Flow Diagram: HTML/CSS diagram showing VPA watching resource usage and adjusting container resource requests/limits. Goal: Explain VPA's vertical scaling.
+        - Comparison Table: Summarizes key aspects, scaling type, use cases, and limitations for HPA vs. VPA. Goal: Compare/Inform.
+        - All diagrams use plain HTML/CSS (Tailwind for layout, simple boxes and Unicode characters for icons/arrows).
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1f2937;
+        }
+        .section-header {
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .content-card {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+        }
+        pre {
+            background-color: #1f2937;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-family: 'monospace', 'Inter';
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .diagram-box {
+            background-color: #e0f2fe; /* Light blue for diagram backgrounds */
+            border: 1px solid #93c5fd;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: 100%;
+            max-width: 800px; /* Max width for diagrams */
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .diagram-node {
+            background-color: #fff;
+            border: 1px solid #3b82f6;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+        }
+        .diagram-arrow {
+            font-size: 1.5rem;
+            color: #2563eb;
+            margin: 0.2rem 0;
+        }
+        .autoscaler-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #8b5cf6; /* Purple for autoscaler */
+        }
+        .metric-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #f97316; /* Orange for metrics */
+        }
+        .pod-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #6366f1; /* Indigo for pods */
+        }
+        .scale-up-icon {
+            color: #10b981; /* Green for scale up */
+            font-weight: bold;
+        }
+        .scale-down-icon {
+            color: #ef4444; /* Red for scale down */
+            font-weight: bold;
+        }
+        .label-box {
+            font-size: 0.8rem;
+            background-color: #f0f9ff;
+            border: 1px solid #bfdbfe;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            white-space: nowrap;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #cbd5e1;
+            padding: 0.75rem;
+            text-align: left;
+        }
+        th {
+            background-color: #e2e8f0;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="scroll-smooth">
+
+    <header class="bg-blue-600 text-white py-6 text-center shadow-md">
+        <div class="container mx-auto px-6">
+            <h1 class="text-3xl md:text-4xl font-bold">Kubernetes Otomatik Ölçeklendirme: HPA ve VPA</h1>
+            <p class="text-lg mt-2">Uygulamalarınızın kaynak kullanımını ve performansını otomatik olarak optimize edin.</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section id="giris" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Giriş: Dinamik İş Yüklerini Yönetmek</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Bulut tabanlı uygulamaların iş yükleri genellikle dalgalanmalar gösterir; günün veya haftanın belirli saatlerinde yoğunluk artarken, diğer zamanlarda düşüş yaşanabilir. Bu dinamik iş yüklerini manuel olarak yönetmek (Pod sayısını artırmak/azaltmak veya Pod'ların kaynaklarını değiştirmek) verimsiz, zaman alıcı ve hataya açık bir süreçtir. Kubernetes, bu sorunu çözmek için otomatik ölçeklendirme mekanizmaları sunar.
+            </p>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Kubernetes'te otomatik ölçeklendirme, uygulamanızın performansını ve kaynak verimliliğini, değişen taleplere göre dinamik olarak ayarlamasını sağlar. İki ana otomatik ölçeklendirme türü vardır:
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Yatay Ölçeklendirme (Horizontal Scaling):** Uygulamanın performansını artırmak için Pod sayısını (replikalarını) artırma veya azaltma.</li>
+                    <li>**Dikey Ölçeklendirme (Vertical Scaling):** Bir Pod'un kaynak (CPU, bellek) taleplerini ve limitlerini değiştirerek tek bir Pod'un performansını artırma veya azaltma.</li>
+                </ul>
+                Kubernetes, bu iki ölçeklendirme türünü yönetmek için iki ana API objesi sunar: **Horizontal Pod Autoscaler (HPA)** ve **Vertical Pod Autoscaler (VPA)**. Bu belgede, her ikisini de detaylı olarak inceleyeceğiz.
+            </p>
+            <div class="diagram-box">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">Otomatik Ölçeklendirme Konsepti</h3>
+                <div class="flex items-center justify-center w-full my-4">
+                    <div class="diagram-node">
+                        <span class="pod-icon">📦</span>
+                        <div class="label-box">Düşük Yük</div>
+                        <p class="text-xs text-gray-700 mt-1">1 Pod</p>
+                    </div>
+                    <span class="diagram-arrow">⟶</span>
+                    <div class="diagram-node">
+                        <span class="metric-icon">📈</span>
+                        <div class="label-box">Metrikler Yükseliyor</div>
+                        <p class="text-xs text-gray-700 mt-1">CPU %80</p>
+                    </div>
+                    <span class="diagram-arrow">⟶</span>
+                    <div class="diagram-node">
+                        <span class="autoscaler-icon">💜</span>
+                        <div class="label-box">Autoscaler Kararı</div>
+                    </div>
+                    <span class="diagram-arrow">⟶</span>
+                    <div class="diagram-node">
+                        <span class="pod-icon scale-up-icon">📦📦📦</span>
+                        <div class="label-box">Yüksek Yük</div>
+                        <p class="text-xs text-gray-700 mt-1">3 Pod</p>
+                    </div>
+                </div>
+                <p class="text-sm text-gray-500 mt-4">Otomatik ölçeklendirme, talep arttıkça kaynakları dinamik olarak ayarlar.</p>
+            </div>
+        </section>
+
+        <section id="hpa" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">1. Horizontal Pod Autoscaler (HPA)</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **Horizontal Pod Autoscaler (HPA)**, Kubernetes kümesindeki bir `Deployment`, `ReplicaSet` veya `StatefulSet`'teki Pod sayısını (replikalarını) otomatik olarak ayarlayan bir API objesidir. Bu ayarlama, belirtilen hedeflenen metrik değerlerine (örneğin ortalama CPU kullanımı, ortalama bellek kullanımı veya özel metrikler) göre yapılır. HPA, uygulamanızın yatay olarak ölçeklenmesinden sorumludur.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Neden ve Ne İşe Yarar?</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Dinamik Talep Karşılama:** Uygulamanızın gelen talebi otomatik olarak karşılamasını sağlar, ani yük artışlarına veya azalışlarına hızlıca yanıt verir.</li>
+                    <li>**Performans Optimizasyonu:** Pod'lar aşırı yüklenmeden önce yeni Pod'lar ekleyerek uygulama performansını korur.</li>
+                    <li>**Maliyet Verimliliği:** Talep azaldığında Pod sayısını düşürerek gereksiz kaynak tüketimini ve bulut maliyetlerini azaltır.</li>
+                    <li>**Yüksek Erişilebilirlik:** Daha fazla Pod çalıştırarak uygulamanın hata toleransını artırır.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Nasıl Çalışır?</h3>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    HPA denetleyicisi, `kube-controller-manager` içinde çalışır ve belirtilen Pod metriklerini düzenli aralıklarla (varsayılan olarak 15 saniye) kontrol eder. Bu metrikler genellikle `metrics-server` (CPU ve bellek gibi yerleşik metrikler için) veya Prometheus gibi harici izleme sistemlerinden (özel metrikler için) alınır. HPA, mevcut metrik değerlerini tanımlanan hedeflerle karşılaştırır ve `Deployment` veya `StatefulSet`'in `replicas` alanını uygun şekilde ayarlar.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Özellikleri:</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>`spec.scaleTargetRef`: Ölçeklendirilecek hedef kaynağı (örneğin bir Deployment).</li>
+                    <li>`spec.minReplicas`: Uygulamanın sahip olabileceği minimum Pod sayısı.</li>
+                    <li>`spec.maxReplicas`: Uygulamanın sahip olabileceği maksimum Pod sayısı.</li>
+                    <li>`spec.metrics`: Ölçekleme kararlarının temel alınacağı metrikler.
+                        <ul>
+                            <li>`Resource` metrikleri (CPU, Memory): Hedef değer yüzde cinsinden (örneğin %50 CPU kullanımı).</li>
+                            <li>`Pods` metrikleri: Pod'lar tarafından yayılan metrikler (örneğin istek kuyruğu boyutu).</li>
+                            <li>`Object` metrikleri: Küme genelindeki bir objeye ait metrikler (örneğin Ingress'ten gelen saniye başına istek sayısı).</li>
+                            <li>`External` metrikler: Küme dışından gelen metrikler (örneğin bir bulut sağlayıcısının mesaj kuyruğundaki mesaj sayısı).</li>
+                        </ul>
+                    </li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek YAML:</h3>
+                <pre><code>
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: my-app-hpa
+  namespace: default
+spec:
+  scaleTargetRef: # Ölçeklendirilecek hedef
+    apiVersion: apps/v1
+    kind: Deployment
+    name: my-app-deployment
+  minReplicas: 2 # Minimum 2 Pod
+  maxReplicas: 10 # Maksimum 10 Pod
+  metrics:
+  - type: Resource # Kaynak metriği
+    resource:
+      name: cpu
+      target:
+        type: Utilization # Hedef CPU kullanımı yüzdesi
+        averageUtilization: 50 # Ortalama %50 CPU kullanımında ölçeklendir
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: AverageValue # Hedef ortalama bellek değeri
+        averageValue: 200Mi # Ortalama 200MiB bellek kullanımında ölçeklendir
+                </code></pre>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">HPA Çalışma Akışı</h4>
+                    <div class="flex items-center justify-center w-full">
+                        <div class="diagram-node">
+                            <span class="pod-icon">📦📦</span>
+                            <div class="label-box">Uygulama Pod'ları</div>
+                            <p class="text-xs text-gray-700 mt-1">(Mevcut Kaynak Kullanımı)</p>
+                        </div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="diagram-node">
+                            <span class="metric-icon">📊</span>
+                            <div class="label-box">Metrics Server / Prometheus</div>
+                            <p class="text-xs text-gray-700 mt-1">(Metrikleri Toplar)</p>
+                        </div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="diagram-node">
+                            <span class="autoscaler-icon">💜</span>
+                            <div class="label-box">Horizontal Pod Autoscaler</div>
+                            <p class="text-xs text-gray-700 mt-1">(Hedefleri Karşılaştırır)</p>
+                        </div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="diagram-node">
+                            <span class="pod-icon scale-up-icon">↑ Replicas</span>
+                            <div class="label-box">Deployment / StatefulSet</div>
+                            <p class="text-xs text-gray-700 mt-1">(Pod Sayısını Ayarlar)</p>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">HPA, metrikleri izleyerek Pod sayısını yatay olarak ayarlar.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="vpa" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">2. Vertical Pod Autoscaler (VPA)</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **Vertical Pod Autoscaler (VPA)**, bir Pod'un konteynerleri için CPU ve bellek `request` ve `limit` değerlerini otomatik olarak ayarlayan bir Kubernetes bileşenidir. VPA, uygulamanızın geçmiş kaynak kullanım verilerini analiz eder ve en uygun kaynak konfigürasyonunu önerir veya doğrudan uygular. Amacı, kaynak israfını azaltmak ve aynı zamanda uygulamanın performans gereksinimlerini karşılamak için Pod'ların yeterli kaynağa sahip olmasını sağlamaktır.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Neden ve Ne İşe Yarar?</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Kaynak Optimizasyonu:** Pod'lara doğru miktarda CPU ve bellek atayarak kaynak israfını önler.</li>
+                    <li>**Performans İstikrarı:** Pod'ların darboğaz yaşamasını engelleyerek uygulamanın performansını artırır.</li>
+                    <li>**Manuel Ayarlama Yükünü Azaltma:** Geliştiricilerin veya operatörlerin Pod'lar için manuel olarak kaynak `request` ve `limit` değerleri belirlemesi ihtiyacını ortadan kaldırır.</li>
+                    <li>**Daha İyi Zamanlama:** Doğru kaynak istekleri, Scheduler'ın Pod'ları düğümlere daha verimli bir şekilde yerleştirmesine yardımcı olur.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Nasıl Çalışır?</h3>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    VPA, Kubernetes kümesinde birkaç bileşenden oluşur (VPA Recommender, VPA Updater, VPA Admission Plugin).
+                    <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                        <li>**VPA Recommender:** Pod'ların geçmiş CPU ve bellek kullanım verilerini toplar ve analiz eder (genellikle `metrics-server`'dan). Bu verilere dayanarak, Pod'ların konteynerleri için önerilen `request` ve `limit` değerlerini hesaplar.</li>
+                        <li>**VPA Updater:** Recommender'dan gelen önerilere göre Pod'ları yeniden yapılandırır. Bu, genellikle Pod'ları tahliye edip yeni kaynak istekleriyle yeniden başlatmak anlamına gelir.</li>
+                        <li>**VPA Admission Plugin:** Yeni veya güncellenen Pod'ların kaynak isteklerini ve limitlerini VPA önerilerine göre otomatik olarak ayarlar, böylece yeni Pod'lar doğru boyutlandırılarak başlatılır.</li>
+                    </ul>
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Özellikleri:</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>`spec.targetRef`: Ölçeklendirilecek hedef kaynağı (örneğin bir Deployment).</li>
+                    <li>`spec.updatePolicy.updateMode`: VPA'nın kaynakları nasıl uygulayacağını belirler:
+                        <ul>
+                            <li>`Off`: Sadece öneri yapar, otomatik değişiklik yapmaz.</li>
+                            <li>`Initial`: Pod başlatıldığında kaynakları ayarlar.</li>
+                            <li>`Recreate`: Kaynaklar değiştiğinde Pod'u yeniden oluşturur.</li>
+                            <li>`Auto` (varsayılan): `Recreate` gibi Pod'u yeniden oluşturur (bazı durumlarda yerinde güncelleme de yapabilir).</li>
+                        </ul>
+                    </li>
+                    <li>`spec.resourcePolicy`: VPA'nın hangi konteynerler için öneriler yapacağını ve min/max kaynaklarını belirler.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek YAML:</h3>
+                <pre><code>
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: my-app-vpa
+  namespace: default
+spec:
+  targetRef: # Ölçeklendirilecek hedef
+    apiVersion: "apps/v1"
+    kind:       Deployment
+    name:       my-app-deployment
+  updatePolicy:
+    updateMode: "Auto" # Otomatik olarak kaynakları güncelle ve Pod'u yeniden başlat
+  resourcePolicy:
+    containerPolicies:
+      - containerName: '*' # Tüm konteynerler için geçerli
+        minAllowed:
+          cpu: 100m
+          memory: 50Mi
+        maxAllowed:
+          cpu: 2
+          memory: 1Gi
+                </code></pre>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">VPA Çalışma Akışı</h4>
+                    <div class="flex items-center justify-center w-full">
+                        <div class="diagram-node">
+                            <span class="pod-icon">📦</span>
+                            <div class="label-box">Uygulama Pod'u</div>
+                            <p class="text-xs text-gray-700 mt-1">(Kaynak Kullanımı)</p>
+                        </div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="diagram-node">
+                            <span class="metric-icon">📊</span>
+                            <div class="label-box">Metrics Server</div>
+                            <p class="text-xs text-gray-700 mt-1">(Metrikleri Toplar)</p>
+                        </div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="diagram-node">
+                            <span class="autoscaler-icon">💜</span>
+                            <div class="label-box">VPA Recommender</div>
+                            <p class="text-xs text-gray-700 mt-1">(Öneri Hesaplar)</p>
+                        </div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="diagram-node">
+                            <span class="pod-icon scale-up-icon">↑ Resource</span>
+                            <div class="label-box">VPA Updater</div>
+                            <p class="text-xs text-gray-700 mt-1">(Pod Kaynaklarını Ayarlar)</p>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">VPA, metrikleri izleyerek Pod kaynaklarını dikey olarak ayarlar.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="karsilastirma" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">HPA ve VPA Karşılaştırması</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                HPA ve VPA, farklı ölçeklendirme boyutlarına odaklanır ve genellikle birbirini tamamlayıcı olarak kullanılırlar. Aynı anda bir Pod'u hem HPA hem de VPA ile ölçeklendirmek çakışmalara yol açabilir, bu nedenle dikkatli olunmalıdır.
+            </p>
+
+            <h3 class="text-xl font-bold text-gray-800 mb-3">Temel Farklar:</h3>
+            <div class="overflow-x-auto">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Özellik</th>
+                            <th>Horizontal Pod Autoscaler (HPA)</th>
+                            <th>Vertical Pod Autoscaler (VPA)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>**Ölçeklendirme Türü**</td>
+                            <td>**Yatay (Horizontal)**: Pod sayısını artırma/azaltma.</td>
+                            <td>**Dikey (Vertical)**: Konteynerlerin CPU/bellek kaynaklarını (request/limit) artırma/azaltma.</td>
+                        </tr>
+                        <tr>
+                            <td>**Ne Ölçeklendirir?**</td>
+                            <td>`Deployment`, `ReplicaSet`, `StatefulSet`'teki Pod replikası sayısı.</td>
+                            <td>Pod'lardaki konteynerlerin `requests` ve `limits` değerleri.</td>
+                        </tr>
+                        <tr>
+                            <td>**Amacı**</td>
+                            <td>Dinamik talebi karşılamak, yüksek kullanılabilirlik sağlamak.</td>
+                            <td>Kaynak verimliliği, kaynak israfını azaltmak, performans istikrarı.</td>
+                        </tr>
+                        <tr>
+                            <td>**Metrikler**</td>
+                            <td>CPU kullanımı, bellek kullanımı (yüzde veya değer olarak), özel metrikler, harici metrikler.</td>
+                            <td>Geçmiş CPU ve bellek kullanımı.</td>
+                        </tr>
+                        <tr>
+                            <td>**Uygulama Etkisi**</td>
+                            <td>Uygulamanın stateless olması veya yük dağıtımı için tasarlanmış olması gerekir. Pod'lar eklenir/kaldırılır.</td>
+                            <td>Pod'ların yeniden başlatılmasına neden olabilir (UpdateMode'a bağlı olarak). Pod'ların restart'a toleranslı olması gerekir.</td>
+                        </tr>
+                        <tr>
+                            <td>**Kullanım Senaryosu**</td>
+                            <td>Web sunucuları, API ağ geçitleri gibi değişken yüke sahip uygulamalar.</td>
+                            <td>Başlangıçta doğru kaynak boyutunu belirlemekte zorlanılan veya kaynak kullanımı dalgalanan uygulamalar. Batch işleri.</td>
+                        </tr>
+                        <tr>
+                            <td>**Kurulum**</td>
+                            <td>Kubernetes'in yerleşik bir kontrolcüsü olarak gelir.</td>
+                            <td>Ek bir bileşen olarak kümede dağıtılmalıdır (genellikle bir operatör gibi).</td>
+                        </tr>
+                        <tr>
+                            <td>**Çakışma**</td>
+                            <td>VPA ile aynı Pod'lar üzerinde doğrudan çakışır. Genellikle birlikte kullanılmaz.</td>
+                            <td>HPA ile aynı Pod'lar üzerinde doğrudan çakışır (ikisi de Pod'ların kaynaklarını veya sayısını kontrol etmeye çalışır).</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3 class="text-xl font-bold text-gray-800 mt-8 mb-3">Birlikte Kullanım (Ama Dikkatle):</h3>
+            <p class="text-gray-700 mb-4 leading-relaxed">
+                HPA ve VPA aynı Pod'ların kaynaklarını veya replikalarını doğrudan kontrol etmeye çalıştığında çakışabilirler. Ancak, bazı senaryolarda dolaylı olarak birlikte kullanılabilirler:
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**HPA ve Cluster Autoscaler ile VPA:** Yaygın bir kombinasyondur. VPA, Pod'ların CPU/bellek `request` değerlerini optimize ederken, HPA Pod sayısını (replikaları) yönetir. Cluster Autoscaler ise Pod'ların zamanlanması için yeterli düğüm olmadığında yeni düğümler ekler. Bu üçlü birlikte, kümenin genel kaynak verimliliğini ve uygulama performansını optimize eder.</li>
+                    <li>**Farklı İş Yükleri İçin:** VPA'yı CPU ve bellek yoğun, daha sabit bir Pod sayısına sahip uygulamalar için kullanırken, HPA'yı değişken yüke sahip stateless web uygulamaları için kullanabilirsiniz.</li>
+                </ul>
+            </p>
+        </section>
+
+        <section id="sonuc" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Sonuç</h2>
+            <p class="text-lg text-gray-700 leading-relaxed">
+                Kubernetes'teki Horizontal Pod Autoscaler (HPA) ve Vertical Pod Autoscaler (VPA), uygulamalarınızın değişen taleplere göre otomatik olarak ölçeklenmesini sağlayan güçlü araçlardır. HPA, uygulamanızın performansını yatay olarak (Pod sayısını artırarak/azaltarak) optimize ederken, VPA Pod'larınızın kaynak verimliliğini dikey olarak (CPU/bellek `request` ve `limit` değerlerini ayarlayarak) artırır.
+            </p>
+            <p class="text-lg text-gray-700 leading-relaxed mt-4">
+                Her ikisinin de kendine özgü avantajları ve kullanım alanları vardır. Genellikle, uygulamanın talebine hızlı yanıt vermek ve yüksek kullanılabilirlik sağlamak için HPA tercih edilirken, kaynak israfını azaltmak ve Pod'ların doğru boyutlandırıldığından emin olmak için VPA kullanılır. Bu otoscaler'ları doğru bir şekilde yapılandırmak ve kullanmak, Kubernetes kümelerinizde hem maliyet verimliliği hem de yüksek performans elde etmenin anahtarıdır.
+            </p>
+        </section>
+    </main>
+    
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2025 Kubernetes Otomatik Ölçeklendirme Anlatım. Tüm hakları saklıdır.</p>
+            <p class="text-sm text-gray-400 mt-2">Bu belge, Kubernetes'teki HPA ve VPA kavramlarını detaylı açıklamak amacıyla oluşturulmuştur.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
