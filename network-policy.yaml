@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes NetworkPolicy Detaylı Anlatım</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Tech Blue, Gray, Green for success/allow, Red for block -->
+    <!-- Application Structure Plan: This HTML document is designed as a standalone, comprehensive guide to Kubernetes NetworkPolicy. It starts with an introduction, moves to the core concepts of NetworkPolicy (selectors, ingress/egress, policy types) with examples, then dives into the crucial underlying technologies: iptables and eBPF. Each technology is explained with conceptual diagrams using HTML/CSS to illustrate their role in packet filtering. The document is structured linearly, enabling a deep dive into each topic. -->
+    <!-- Visualization & Content Choices: 
+        - NetworkPolicy Overview: Conceptual diagram showing Pods and NetworkPolicy applying rules using HTML/CSS (flexbox, grid, simple boxes and arrows using Unicode). Goal: Inform/Illustrate. Justification: Provides an immediate visual understanding of NetworkPolicy's purpose.
+        - iptables Diagram: Block diagram showing packet flow through kernel with iptables chains, highlighting where rules apply. Uses HTML/CSS for boxes and Unicode arrows. Goal: Explain underlying mechanism. Justification: Visually clarifies how iptables functions in packet filtering.
+        - eBPF Diagram: Block diagram showing eBPF programs attached to network interfaces, illustrating earlier interception of packets. Uses HTML/CSS for boxes and Unicode arrows. Goal: Explain underlying mechanism. Justification: Visually clarifies the different paradigm of eBPF compared to iptables.
+        - NetworkPolicy Examples: Code blocks for ingress, egress, and combined policies. Goal: Practical application. Justification: Provides concrete examples for users to implement.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1f2937;
+        }
+        .section-header {
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .content-card {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+        }
+        pre {
+            background-color: #1f2937;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-family: 'monospace', 'Inter';
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .diagram-box {
+            background-color: #e0f2fe; /* Light blue for diagram backgrounds */
+            border: 1px solid #93c5fd;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: 100%;
+            max-width: 800px; /* Max width for diagrams */
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .diagram-node {
+            background-color: #fff;
+            border: 1px solid #3b82f6;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+        }
+        .diagram-arrow {
+            font-size: 1.5rem;
+            color: #2563eb;
+            margin: 0.2rem 0;
+        }
+        .pod-representation {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0.5rem;
+        }
+        .pod-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+        }
+        .pod-label {
+            font-size: 0.8rem;
+            background-color: #f0f9ff;
+            border: 1px solid #bfdbfe;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            white-space: nowrap;
+        }
+        .allow-indicator {
+            color: #10b981; /* Green */
+            font-weight: bold;
+            font-size: 1.25rem;
+            margin: 0.5rem;
+        }
+        .deny-indicator {
+            color: #ef4444; /* Red */
+            font-weight: bold;
+            font-size: 1.25rem;
+            margin: 0.5rem;
+        }
+        .iptables-chain-box, .ebpf-program-box {
+            background-color: #f0f9ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            margin: 0.5rem;
+            font-size: 0.85rem;
+            color: #1e3a8a;
+            font-weight: 600;
+        }
+        .iptables-filter-table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 1rem;
+        }
+        .iptables-filter-table th, .iptables-filter-table td {
+            border: 1px solid #cbd5e1;
+            padding: 0.75rem;
+            text-align: left;
+        }
+        .iptables-filter-table th {
+            background-color: #e2e8f0;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="scroll-smooth">
+
+    <header class="bg-blue-600 text-white py-6 text-center shadow-md">
+        <div class="container mx-auto px-6">
+            <h1 class="text-3xl md:text-4xl font-bold">Kubernetes NetworkPolicy: Ağ Güvenliğinde Derin Dalış</h1>
+            <p class="text-lg mt-2">Pod'lar arası iletişimi kontrol ederek uygulama güvenliğini artırın.</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section id="giris" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Giriş: NetworkPolicy Nedir?</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Kubernetes kümesinde varsayılan olarak, tüm Pod'lar herhangi bir kısıtlama olmaksızın birbirleriyle iletişim kurabilir. Bu durum, özellikle çoklu kiracılı (multi-tenant) ortamlarda veya farklı güvenlik seviyelerine sahip uygulamaların bir arada çalıştığı durumlarda ciddi güvenlik riskleri oluşturabilir. İşte bu noktada **NetworkPolicy**'ler (Ağ Politikaları) devreye girer.
+            </p>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                **NetworkPolicy**, Pod'lar arasındaki ve Pod'lara/Pod'lardan gelen/giden ağ trafiğini kontrol etmek için kullanılan bir Kubernetes API objesidir. Bu politikalar, seçilen Pod gruplarına hangi diğer Pod'ların (veya dış IP aralıklarının) erişebileceğini belirleyerek, "en az ayrıcalık" ilkesini (least privilege) ağ seviyesinde uygulamanıza olanak tanır. Temelde, bir güvenlik duvarı (firewall) kuralı gibi çalışarak Pod'lar için ağ segmentasyonu ve izolasyon sağlar.
+            </p>
+            <div class="diagram-box">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">NetworkPolicy Çalışma Prensibi</h3>
+                <div class="flex items-center justify-center w-full my-4">
+                    <div class="pod-representation">
+                        <span class="pod-icon">📦</span>
+                        <div class="pod-label">Uygulama A (frontend)</div>
+                    </div>
+                    <span class="diagram-arrow">⟶</span>
+                    <span class="diagram-arrow">⟶</span>
+                    <div class="pod-representation">
+                        <span class="pod-icon">📦</span>
+                        <div class="pod-label">Uygulama B (backend)</div>
+                    </div>
+                </div>
+                <p class="text-gray-700 mb-4 text-center">
+                    **Varsayılan Durum:** Tüm Pod'lar sınırsız iletişim kurabilir.
+                </p>
+                <div class="flex items-center justify-center w-full my-4">
+                    <div class="pod-representation">
+                        <span class="pod-icon">📦</span>
+                        <div class="pod-label">Uygulama A</div>
+                    </div>
+                    <span class="diagram-arrow">--x--</span>
+                    <div class="pod-representation bg-blue-100 p-2 rounded-lg border border-blue-300">
+                        <p class="text-sm font-semibold text-blue-800">NetworkPolicy</p>
+                        <p class="text-xs text-blue-600">"Sadece A'dan gelen trafiğe izin ver"</p>
+                    </div>
+                    <span class="diagram-arrow">⟶</span>
+                    <div class="pod-representation">
+                        <span class="pod-icon">📦</span>
+                        <div class="pod-label">Uygulama B</div>
+                    </div>
+                </div>
+                <p class="text-gray-700 text-center">
+                    **NetworkPolicy Uygulandığında:** Politikaya göre trafik kısıtlanır veya izin verilir.
+                </p>
+            </div>
+        </section>
+
+        <section id="policy-yapisi" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">NetworkPolicy Yapısı ve Kuralları</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    Bir NetworkPolicy, hangi Pod'lara uygulanacağını ve bu Pod'lara gelen (ingress) ve giden (egress) trafiği nasıl filtreleyeceğini tanımlar.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Temel Alanlar:</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>`metadata.name`: NetworkPolicy'nin adı.</li>
+                    <li>`spec.podSelector`: Bu politikanın uygulanacağı Pod'ları seçer. Boş bir `podSelector: {}` tüm Pod'lara uygulanacağı anlamına gelir.</li>
+                    <li>`spec.policyTypes`: Uygulanacak politika tipleri. `Ingress` (gelen trafik), `Egress` (giden trafik) veya ikisi birden olabilir. Eğer belirtilmezse, sadece `ingress` kuralları içeren bir politika için `Ingress`, sadece `egress` kuralları içeren bir politika için `Egress` varsayılır. Hem `ingress` hem de `egress` kuralları içeren bir politika için ikisi de belirtilmelidir.</li>
+                </ul>
+
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Gelen (Ingress) Trafik Kuralları:</h3>
+                <p class="text-gray-700 mb-2 leading-relaxed">
+                    `ingress` kuralı, seçilen Pod'lara gelen trafiği kontrol eder. Her bir `ingress` kuralı, hangi kaynaklardan ve hangi portlara izin verileceğini belirtir.
+                </p>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>`from`: Trafiğin hangi kaynaklardan gelebileceğini tanımlar.
+                        <ul>
+                            <li>`ipBlock`: CIDR notasyonu kullanarak IP adresi aralığı.</li>
+                            <li>`podSelector`: Aynı namespace içindeki Pod'ları etiket seçici ile belirler.</li>
+                            <li>`namespaceSelector`: Belirli bir namespace'deki tüm Pod'ları seçer.</li>
+                            <li>Hem `podSelector` hem de `namespaceSelector` kullanıldığında, belirli bir namespace içindeki belirli Pod'ları seçer.</li>
+                        </ul>
+                    </li>
+                    <li>`ports`: Hangi portlara izin verileceğini ve protokolü (TCP/UDP) belirtir.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Giden (Egress) Trafik Kuralları:</h3>
+                <p class="text-gray-700 mb-2 leading-relaxed">
+                    `egress` kuralı, seçilen Pod'lardan dışarı giden trafiği kontrol eder. Her bir `egress` kuralı, trafiğin hangi hedeflere ve hangi portlardan gidebileceğini belirtir.
+                </p>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>`to`: Trafiğin hangi hedeflere gidebileceğini tanımlar. `from` ile aynı seçicileri (`ipBlock`, `podSelector`, `namespaceSelector`) kullanır.</li>
+                    <li>`ports`: Hangi portlardan giden trafiğe izin verileceğini ve protokolü (TCP/UDP) belirtir.</li>
+                </ul>
+
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek NetworkPolicy: Sadece Belirli Uygulamalara İzin Veren</h3>
+                <pre><code>
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-backend-policy
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: web-backend # Bu politika 'app: web-backend' etiketli Pod'lara uygulanır
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from: # Sadece 'app: web-frontend' etiketli Pod'lardan gelen trafiğe izin ver
+      - podSelector:
+          matchLabels:
+            app: web-frontend
+      ports: # Sadece 8080 portuna gelen trafiğe izin ver
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to: # Sadece 'app: database' etiketli Pod'lara giden trafiğe izin ver
+      - podSelector:
+          matchLabels:
+            app: database
+      ports: # Sadece 5432 portundan giden trafiğe izin ver
+        - protocol: TCP
+          port: 5432
+                </code></pre>
+                <p class="text-gray-700 mt-4 leading-relaxed">
+                    Bu politika, `web-backend` Pod'larının yalnızca `web-frontend` Pod'larından gelen TCP 8080 trafiğini kabul etmesini ve yalnızca `database` Pod'larına TCP 5432 trafiği göndermesini sağlar. Diğer tüm gelen ve giden trafik engellenir.
+                </p>
+            </div>
+        </section>
+
+        <section id="networkpolicy-altinda-yatan-teknolojiler" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">NetworkPolicy Altında Yatan Teknolojiler</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                NetworkPolicy'ler, soyut bir Kubernetes kaynağı olsa da, arka planda Linux çekirdeğinin ağ yeteneklerini kullanarak trafiği yönetirler. En yaygın olarak `iptables` veya `eBPF` gibi teknolojiler kullanılır. NetworkPolicy'lerin çalışması için kümenizde bir Ağ Politikası Denetleyicisi (Network Policy Controller) kurulu olması gerekir (örneğin Calico, Cilium, Weave Net). Varsayılan Kubernetes kurulumları genellikle bu özelliği sağlamaz, bu yüzden uygun bir CNI (Container Network Interface) eklentisi seçimi kritik öneme sahiptir.
+            </p>
+
+            <h3 class="text-2xl font-bold text-gray-800 mb-4">1. iptables</h3>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **iptables**, Linux çekirdeğinde bulunan bir güvenlik duvarı ve ağ paketi filtreleme mekanizmasıdır. Ağ paketlerinin nasıl yönlendirileceğini, değiştirileceğini veya düşürüleceğini belirleyen kuralları yönetir. Geleneksel olarak, çoğu Kubernetes CNI eklentisi (örneğin kube-proxy) NetworkPolicy'leri iptables kurallarına dönüştürerek uygular.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Nasıl Çalışır?</h3>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    iptables, paketlerin bir dizi kuraldan (zincirler, chains) geçtiği bir "paket filtreleme döngüsü" prensibiyle çalışır. Her kural, paketin belirli kriterlere (kaynak/hedef IP, port, protokol vb.) uyup uymadığını kontrol eder ve eşleşirse bir eylem (kabul et, düşür, reddet, başka zincire atla) gerçekleştirir.
+                </p>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">iptables ile Paket Akışı (Basitleştirilmiş)</h4>
+                    <div class="flex items-center">
+                        <div class="diagram-node">Gelen Paket</div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="iptables-chain-box">PREROUTING</div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="iptables-chain-box">INPUT</div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="diagram-node">Yerel Süreç</div>
+                    </div>
+                    <div class="flex items-center mt-4">
+                        <div class="diagram-node">Yerel Süreç</div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="iptables-chain-box">OUTPUT</div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="iptables-chain-box">POSTROUTING</div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="diagram-node">Giden Paket</div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">Paketler, kernel içindeki farklı iptables zincirlerinden geçerken kurallara göre işlenir.</p>
+                </div>
+                <p class="text-gray-700 mt-4 leading-relaxed">
+                    **Dezavantajları:**
+                    <ul class="list-disc list-inside text-gray-700 pl-4 leading-relaxed">
+                        <li>Büyük ve karmaşık kurallar setlerinde performans sorunları yaşayabilir.</li>
+                        <li>Kural ekleme/silme işlemleri atomik değildir ve performans etkileri olabilir.</li>
+                        <li>Dinamik ortamlarda (Kubernetes gibi) kural yönetimi karmaşıklaşabilir.</li>
+                    </ul>
+                </p>
+            </div>
+
+            <h3 class="text-2xl font-bold text-gray-800 mb-4">2. eBPF (extended Berkeley Packet Filter)</h3>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **eBPF**, Linux çekirdeğinde çalışan, olay tabanlı, sanal bir makine teknolojisidir. Geliştiricilerin, çekirdek kodu değiştirmeden, çekirdek içinde güvenli bir şekilde programlar çalıştırmasına olanak tanır. Ağ, güvenlik, izleme gibi alanlarda devrim niteliğinde yetenekler sunar. Cilium gibi modern CNI eklentileri, NetworkPolicy'leri uygulamak için iptables yerine eBPF'i kullanır.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Nasıl Çalışır?</h3>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    eBPF programları, paketlerin ağ yığını içinde erken bir aşamada ele geçirilmesini ve işlenmesini sağlar. Bu programlar, sanal ağ arayüzlerine (veth çiftleri), trafik kontrol kancalarına veya soketlere bağlanabilir. Daha düşük bir seviyede çalışarak, iptables'a göre daha yüksek performans, daha fazla esneklik ve daha iyi gözlemlenebilirlik sunar.
+                </p>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">eBPF ile Paket Akışı (Basitleştirilmiş)</h4>
+                    <div class="flex items-center">
+                        <div class="diagram-node">Gelen Paket</div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="ebpf-program-box">eBPF Programı (Network Interface)</div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="diagram-node">Konteyner</div>
+                    </div>
+                    <div class="flex items-center mt-4">
+                        <div class="diagram-node">Konteyner</div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="ebpf-program-box">eBPF Programı (Network Interface)</div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="diagram-node">Giden Paket</div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">eBPF programları, çekirdek içinde kritik noktalara bağlanarak paketleri daha verimli işler.</p>
+                </div>
+                <p class="text-gray-700 mt-4 leading-relaxed">
+                    **Avantajları:**
+                    <ul class="list-disc list-inside text-gray-700 pl-4 leading-relaxed">
+                        <li>**Yüksek Performans:** Paketleri çekirdek seviyesinde daha erken yakalar ve işler, bu da daha düşük gecikme süresi ve daha yüksek verim sağlar.</li>
+                        <li>**Esneklik ve Genişletilebilirlik:** Çekirdek kodu değiştirmeden özel ağ ve güvenlik mantığı eklemeye olanak tanır.</li>
+                        <li>**Gözlemlenebilirlik:** Çekirdek olaylarını takip etmek ve ağ trafiği hakkında ayrıntılı telemetri toplamak için güçlü yetenekler sunar.</li>
+                        <li>**Daha Az Karmaşıklık:** İptables kurallarının karmaşıklığını ve yönetim zorluğunu azaltır.</li>
+                    </ul>
+                </p>
+            </div>
+        </section>
+
+        <section id="sonuc" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Sonuç</h2>
+            <p class="text-lg text-gray-700 leading-relaxed">
+                NetworkPolicy'ler, Kubernetes ortamlarında ağ güvenliğini sağlamanın ve mikrosegmentasyon uygulamanın temel aracıdır. Bu politikalar, uygulamanızın hassasiyetine ve güvenlik gereksinimlerine göre trafik akışını hassas bir şekilde kontrol etmenizi sağlar. Arka planda `iptables` veya `eBPF` gibi teknolojilerin kullanılması, Kubernetes'in bu ağ politikalarını verimli ve güvenli bir şekilde uygulamasını mümkün kılar. Güvenli bir Kubernetes kümesi için NetworkPolicy'lerin doğru bir şekilde yapılandırılması hayati öneme sahiptir. Özellikle yeni nesil CNI'lar ile eBPF'in sunduğu performans ve esneklik, Kubernetes ağ güvenliği için geleceğin standardını belirlemektedir.
+            </p>
+        </section>
+    </main>
+    
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2025 Kubernetes NetworkPolicy Detaylı Anlatım. Tüm hakları saklıdır.</p>
+            <p class="text-sm text-gray-400 mt-2">Bu belge, Kubernetes NetworkPolicy'i ve altında yatan teknolojileri açıklamayı amaçlamaktadır.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
