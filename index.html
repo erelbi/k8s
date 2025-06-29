@@ -10,13 +10,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Chosen Palette: Cool Neutrals & Tech Blue -->
-    <!-- Application Structure Plan: The SPA is designed with a user-centric, thematic flow to make the complex topic of Kubernetes digestible. It moves from the "Why" (Giriş & Avantajlar), to the "How" (Mimariyi Keşfet & Temel Kavramlar), and finally to the "What else" (Ekosistem). This non-linear structure, supported by sticky navigation, allows both beginners and experienced users to explore content at their own pace. The core of the app is the interactive architecture diagram, which visually breaks down the complex master-worker relationship, turning passive reading into active exploration. Users click on components to reveal information, reinforcing learning through interaction. The detailed textual explanations are integrated within relevant sections, often below the interactive elements, providing depth for those who want to dive deeper without cluttering the initial interactive view. New sections for "Öğrenme Kaynakları" and "Sonuç" provide a complete learning path. -->
+    <!-- Application Structure Plan: The SPA is designed with a user-centric, thematic flow to make the complex topic of Kubernetes digestible. It moves from the "Why" (Giriş & Avantajlar), to the "How" (Mimariyi Keşfet & Temel Kavramlar), and finally to the "What else" (Ekosistem). This non-linear structure, supported by sticky navigation, allows both beginners and experienced users to explore content at their own pace. The core of the app is the interactive architecture diagram, which visually breaks down the complex master-worker relationship, turning passive reading into active exploration. Users click on components to reveal information, reinforcing learning through interaction. The detailed textual explanations are integrated within relevant sections, often below the interactive elements, providing depth for those who want to dive deeper without cluttering the initial interactive view. New sections for "Öğrenme Kaynakları", "Sonuç", and now "Diğer Dokümanlar" provide a complete learning path and easy navigation to related content. -->
     <!-- Visualization & Content Choices: 
         - Report Info: Kubernetes Architecture (Master/Worker Nodes and their components). Goal: Organize/Relationships. Viz/Method: Interactive diagram built with HTML/CSS (Tailwind Flexbox/Grid). Interaction: Clickable component "pills" update a central info panel. Justification: Visually demonstrates the structure and relationships far better than text alone, promoting discovery. Method: Vanilla JS DOM manipulation. Detailed text from the source report is added below the diagram for comprehensive understanding.
         - Report Info: Core Concepts (Pods, Deployments, Services, Namespaces, Volumes, Controllers). Goal: Compare/Inform. Viz/Method: Tabbed interface. Interaction: Clicking tabs reveals dedicated content for each concept, now including more comprehensive descriptions and YAML code examples directly from the source report. Justification: Organizes distinct but related topics cleanly, preventing cognitive overload and allowing focused learning with practical examples. Method: Vanilla JS for tab switching logic.
         - Report Info: Kubernetes Ecosystem (Docker, Helm, Prometheus, Istio, etc.). Goal: Relationships. Viz/Method: Donut Chart. Interaction: Hovering over segments shows tooltips. Justification: Provides a quick visual summary of the major tools. Detailed textual descriptions are provided alongside the chart, explaining each tool's role and importance based on the source report. Library: Chart.js.
         - Report Info: Advantages. Goal: Inform. Viz/Method: Icon-based feature list with expanded textual explanations. Interaction: Static, but provides clear, scannable benefits with detailed supporting paragraphs from the source report. Justification: Quickly communicates key benefits in a visually appealing format, backed by comprehensive explanations. Method: HTML/Tailwind.
-        - Report Info: Introduction, Learning Resources, Conclusion. Goal: Inform. Viz/Method: Extensive textual content. Interaction: Scrolling and navigation. Justification: Provides foundational context, practical learning paths, and a forward-looking summary, ensuring the report is fully translated into the SPA. Method: HTML/Tailwind for structured text.
+        - Report Info: Introduction, Learning Resources, Conclusion, Other Documents. Goal: Inform. Viz/Method: Extensive textual content and a list of links. Interaction: Scrolling and navigation. Justification: Provides foundational context, practical learning paths, a forward-looking summary, and crucial cross-referencing to related detailed documents, ensuring the report is fully translated into the SPA. Method: HTML/Tailwind for structured text and a link list.
     -->
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
@@ -106,6 +106,35 @@
             transition: max-height 0.5s ease-in;
             padding: 1rem 1.5rem;
         }
+        /* Styles from kubernetes-index-page for link list */
+        .section-header {
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .content-card {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 1.5rem;
+        }
+        .link-item {
+            display: block;
+            padding: 1rem;
+            background-color: #f0f9ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 0.5rem;
+            margin-bottom: 0.75rem;
+            font-weight: 500;
+            color: #1e3a8a;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        .link-item:hover {
+            background-color: #e0f2fe;
+            border-color: #93c5fd;
+            color: #2563eb;
+        }
     </style>
 </head>
 <body class="scroll-smooth">
@@ -123,6 +152,7 @@
                 <a href="#ekosistem" class="nav-link px-2 py-1">Ekosistem</a>
                 <a href="#kaynaklar" class="nav-link px-2 py-1">Kaynaklar</a>
                 <a href="#sonuc" class="nav-link px-2 py-1">Sonuç</a>
+                <a href="#dokuman-listesi" class="nav-link px-2 py-1">Diğer Dokümanlar</a>
             </div>
         </nav>
     </header>
@@ -399,6 +429,33 @@
             </div>
         </section>
 
+        <!-- Yeni Eklenen Bölüm: Diğer Dokümanlar -->
+        <section id="dokuman-listesi" class="section">
+            <div class="container mx-auto px-6">
+                <h2 class="text-3xl font-bold text-gray-800 section-header">Diğer Kubernetes Dokümanları</h2>
+                <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                    Kubernetes'in daha detaylı yönlerini keşfetmek için aşağıdaki belgelere göz atabilirsiniz:
+                </p>
+                <div class="content-card">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Mevcut Belgeler:</h3>
+                    <div>
+                        <a href="kubernetes-interactive-guide-tr.html" class="link-item">Kubernetes'e Giriş ve Temel Kavramlar (İnteraktif Rehber)</a>
+                        <a href="kubernetes-components-detail-tr.html" class="link-item">Kubernetes Bileşenleri Detaylı Anlatım</a>
+                        <a href="kubernetes-yaml-structures-detail-tr.html" class="link-item">Kubernetes YAML Yapıları (ConfigMap, Secret, Deployment, PVC, Service, NetworkPolicy) Detaylı Anlatım</a>
+                        <a href="kubernetes-networkpolicy-detail-visual-tr.html" class="link-item">Kubernetes NetworkPolicy: Ağ Güvenliğinde Derin Dalış ve Görselleştirme</a>
+                        <a href="kubernetes-cni-detail-visual-tr.html" class="link-item">Kubernetes CNI Çözümleri: Calico ve Cilium Detaylı Anlatım</a>
+                        <a href="kubernetes-dns-detail-tr.html" class="link-item">Kubernetes DNS Çözümleri: CoreDNS ve Node-Local-DNS Detaylı Anlatım</a>
+                        <a href="kubernetes-ci-cd-gitops-tools-tr.html" class="link-item">Kubernetes CI/CD ve GitOps Araçları: GitLab Agent, GitLab Runner ve Flux CD</a>
+                        <a href="kubernetes-drain-cordon-detail-tr.html" class="link-item">Kubernetes Drain ve Cordon: Düğüm Yönetimi Detayları</a>
+                        <a href="kubernetes-storage-detail-tr.html" class="link-item">Kubernetes Depolama: PV, PVC ve StorageClass Detaylı Anlatım</a>
+                        <a href="kubernetes-job-cronjob-detail-tr.html" class="link-item">Kubernetes Job ve CronJob: Görev Yönetimi Detayları</a>
+                        <a href="kubernetes-rbac-detail-tr.html" class="link-item">Kubernetes RBAC: Rol Tabanlı Erişim Kontrolü Detayları</a>
+                        <a href="kubernetes-hpa-vpa-detail-tr.html" class="link-item">Kubernetes Otomatik Ölçeklendirme: HPA ve VPA Detaylı Anlatım</a>
+                        <a href="kubernetes-statefulset-daemonset-detail-tr.html" class="link-item">Kubernetes StatefulSet ve DaemonSet Detaylı Anlatım</a>
+                    </div>
+                </div>
+            </div>
+        </section>
     </main>
     
     <footer class="bg-gray-800 text-white py-8">
@@ -470,7 +527,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         'service': {
             title: 'Service',
-            icon: '🌐',
+            icon: '�',
             description: 'Bir **Service** (Hizmet), kümedeki Pod\'lara ağ trafiğini eşleyen bir Kubernetes kaynağıdır. Küme içinde veya dışarıdan bir dizi Pod\'u ağ üzerinden erişilebilir kılmak için her seferinde bir Service oluşturulması gerekir. Servisler, Kubernetes ağ modelinin ayrılmaz bir parçasıdır ve alt düzey bileşenlerin soyutlamalarını sağlar. Servisler, Kubernetes kümelerinin dağıtılmış mimarisi nedeniyle gereklidir. Uygulamalar genellikle binlerce kopyaya sahip Pod\'lar olarak dağıtılır ve yüzlerce fiziksel düğüme yayılabilir. Bir kullanıcı uygulamayla etkileşim kurduğunda, isteğin mevcut kopyalardan herhangi birine yönlendirilmesi gerekir. Servisler, bu davranışı sağlamak için Pod\'ların önünde durur ve tüm ağ trafiği, mevcut Pod\'lardan birine yönlendirilmeden önce Servis\'e akar. Diğer uygulamalar, Servis\'in IP adresi veya DNS adı aracılığıyla Pod\'lara güvenilir bir şekilde erişebilir. Yaygın Servis türleri şunlardır: ClusterIP (yalnızca küme içinde erişilebilir sabit IP), NodePort (her düğümdeki belirli bir port üzerinden dışarıya açar), LoadBalancer (bulut sağlayıcısının yük dengeleyicisini kullanır), ExternalName (harici bir DNS adını eşler) ve Headless Service (yük dengeleme gerektirmeyen).',
             code: `apiVersion: v1\nkind: Service\nmetadata:\n  name: nginx-service\nspec:\n  selector:\n    app: nginx\n  ports:\n    - protocol: TCP\n      port: 80\n      targetPort: 80\n  type: LoadBalancer`
         },
