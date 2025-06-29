@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes Ingress ve Ingress Controller Detaylı Anlatım</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Tech Blue, Gray, Green (Service), Red (External), Orange (Ingress) -->
+    <!-- Application Structure Plan: This standalone HTML document is dedicated to Kubernetes Ingress and Ingress Controller. It starts with an introduction to external access, then dedicates sections to Ingress (what, why, how, YAML, visual) and Ingress Controller (what, why, how, common types, visual). A comparison section clarifies Ingress vs. LoadBalancer Service. The linear structure aims for a clear, detailed understanding of these critical networking components. -->
+    <!-- Visualization & Content Choices: 
+        - Basic Ingress Flow Diagram: HTML/CSS diagram illustrating external request -> Ingress -> Service -> Pods. Goal: Overall understanding.
+        - Ingress Controller Role Diagram: HTML/CSS diagram showing Ingress Controller watching Ingress resources and configuring a proxy. Goal: Explain controller's function.
+        - Comparison Table: Summarizes Ingress vs. LoadBalancer Service. Goal: Differentiate use cases.
+        - All diagrams use plain HTML/CSS (Tailwind for layout, simple boxes and Unicode characters for icons/arrows).
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1f2937;
+        }
+        .section-header {
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .content-card {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+        }
+        pre {
+            background-color: #1f2937;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-family: 'monospace', 'Inter';
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .diagram-box {
+            background-color: #e0f2fe; /* Light blue for diagram backgrounds */
+            border: 1px solid #93c5fd;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: 100%;
+            max-width: 800px; /* Max width for diagrams */
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .diagram-node {
+            background-color: #fff;
+            border: 1px solid #3b82f6;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+        }
+        .diagram-arrow {
+            font-size: 1.5rem;
+            color: #2563eb;
+            margin: 0.2rem 0;
+        }
+        .external-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #ef4444; /* Red for external */
+        }
+        .ingress-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #f97316; /* Orange for Ingress */
+        }
+        .service-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #10b981; /* Green for Service */
+        }
+        .pod-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #6366f1; /* Indigo for pods */
+        }
+        .controller-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #8b5cf6; /* Purple for controller */
+        }
+        .label-box {
+            font-size: 0.8rem;
+            background-color: #f0f9ff;
+            border: 1px solid #bfdbfe;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            white-space: nowrap;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #cbd5e1;
+            padding: 0.75rem;
+            text-align: left;
+        }
+        th {
+            background-color: #e2e8f0;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="scroll-smooth">
+
+    <header class="bg-blue-600 text-white py-6 text-center shadow-md">
+        <div class="container mx-auto px-6">
+            <h1 class="text-3xl md:text-4xl font-bold">Kubernetes Ingress ve Ingress Controller Detaylı Anlatım</h1>
+            <p class="text-lg mt-2">Uygulamalarınıza dışarıdan erişimi merkezi ve esnek bir şekilde yönetin.</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section id="giris" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Giriş: Uygulamaları Dış Dünyaya Açmak</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Kubernetes kümelerinde dağıtılan uygulamalar, varsayılan olarak küme içinden erişilebilir haldedir. Ancak, bir web sitesi veya bir API gibi dış dünyadan erişilmesi gereken uygulamalar için bu dahili erişim yeterli değildir. Kubernetes'te uygulamaları dışarıya açmanın çeşitli yolları vardır; `NodePort` ve `LoadBalancer` tipli Servisler bu amaçla kullanılabilir. Ancak, bu çözümlerin büyük ve karmaşık ortamlarda bazı sınırlamaları vardır:
+            </p>
+            <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                <li>**Port Çakışmaları:** `NodePort` kullanıldığında, her Servis'in her düğümde benzersiz bir port açması gerekir ki bu büyük kümelerde yönetimi zorlaştırır.</li>
+                <li>**Maliyet:** Her `LoadBalancer` tipli Servis genellikle bulut sağlayıcınızda ayrı bir yük dengeleyici (ve dolayısıyla ek maliyet) oluşturur.</li>
+                <li>**Gelişmiş Yönlendirme:** Host tabanlı yönlendirme (örneğin `app1.example.com` ve `app2.example.com` adreslerini farklı servislere yönlendirme) veya path tabanlı yönlendirme (örneğin `example.com/api` ve `example.com/blog` adreslerini farklı servislere yönlendirme) gibi gelişmiş trafik yönetimi yetenekleri doğrudan `Service` objeleriyle sağlanamaz.</li>
+            </ul>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                İşte bu noktada **Ingress** ve **Ingress Controller** devreye girer. Ingress, uygulamalarınıza küme dışından HTTP ve HTTPS erişimi sağlayan bir API objesidir. Ingress Controller ise bu Ingress kurallarını gerçekten uygulayan bir bileşendir.
+            </p>
+        </section>
+
+        <section id="ingress" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">1. Ingress: Gelen Trafik Kuralları</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **Ingress**, Kubernetes kümesindeki Servislerinize dışarıdan gelen HTTP ve HTTPS trafiğini yöneten bir API objesidir. Bir nevi küme içi HTTP/HTTPS yönlendirici veya ters proxy kurallarını tanımlar. Ingress'in kendisi trafiği yönlendirmez; sadece trafiğin nasıl yönlendirilmesi gerektiğini belirten bir kural setidir. Bu kuralları uygulayacak olan bir **Ingress Controller**'a ihtiyaç duyar.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Neden ve Ne İşe Yarar?</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Tek Bir Giriş Noktası:** Birden fazla Servisi tek bir IP adresi üzerinden dışarıya açmanızı sağlar, bu da maliyeti ve karmaşıklığı azaltır.</li>
+                    <li>**Host Tabanlı Yönlendirme:** Farklı domain adlarına (hostname) gelen trafiği farklı Servislere yönlendirebilir. Örneğin, `blog.example.com`'u blog Servisine, `api.example.com`'u API Servisine yönlendirebilirsiniz.</li>
+                    <li>**Path Tabanlı Yönlendirme:** Aynı domain adı altında farklı URL yollarına (path) gelen trafiği farklı Servislere yönlendirebilir. Örneğin, `example.com/blog`'u blog Servisine, `example.com/api`'yi API Servisine yönlendirebilirsiniz.</li>
+                    <li>**TLS Sonlandırma:** SSL/TLS sertifikalarını yöneterek HTTPS trafiğini sonlandırabilir ve küme içi trafiği şifrelenmemiş HTTP olarak yönlendirebilir (veya küme içinde de mTLS kullanabilir).</li>
+                    <li>**Yük Dengeleme:** Gelen trafiği Ingress kurallarına göre doğru Servise ve dolayısıyla Pod'lara yük dengeleme yaparak dağıtır.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek YAML:</h3>
+                <pre><code>
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-app-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: / # Nginx Ingress Controller'a özel bir annotation
+spec:
+  ingressClassName: nginx # Kullanılacak Ingress Controller sınıfı
+  rules:
+  - host: www.example.com # Host tabanlı yönlendirme
+    http:
+      paths:
+      - path: / # Tüm kök yolu yakala
+        pathType: Prefix # / ile başlayan tüm yolları kapsar
+        backend:
+          service:
+            name: web-frontend-service # Yönlendirilecek Service
+            port:
+              number: 80 # Service'in portu
+  - host: api.example.com # Başka bir host
+    http:
+      paths:
+      - path: /v1 # /v1 ile başlayan yolları yakala
+        pathType: Prefix
+        backend:
+          service:
+            name: api-backend-service # Yönlendirilecek diğer Service
+            port:
+              number: 8080
+  tls: # TLS (HTTPS) yapılandırması
+  - hosts:
+      - www.example.com
+      - api.example.com
+    secretName: example-com-tls # TLS sertifikasını içeren Secret
+                </code></pre>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">Ingress Temel Akışı</h4>
+                    <div class="flex items-center justify-center w-full">
+                        <div class="diagram-node">
+                            <span class="external-icon">🌍</span>
+                            <div class="label-box">Dışarıdan Gelen İstek</div>
+                            <p class="text-xs text-gray-700 mt-1">(www.example.com/)</p>
+                        </div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="diagram-node">
+                            <span class="ingress-icon">🚦</span>
+                            <div class="label-box">Ingress Kaynağı</div>
+                            <p class="text-xs text-gray-700 mt-1">(Kurallar)</p>
+                        </div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="diagram-node">
+                            <span class="service-icon">✅</span>
+                            <div class="label-box">Web Frontend Service</div>
+                        </div>
+                        <span class="diagram-arrow">⟶</span>
+                        <div class="diagram-node">
+                            <span class="pod-icon">📦</span>
+                            <div class="label-box">Podlar</div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">Ingress, dışarıdan gelen trafiği kurallara göre uygun Servislere yönlendirir.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="ingress-controller" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">2. Ingress Controller: Kuralları Uygulayan Mekanizma</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    Bir **Ingress Controller**, Kubernetes API'sini izleyen ve `Ingress` kaynaklarında tanımlanan kurallara göre bir yük dengeleyiciyi veya ters proxy'yi yapılandıran bir Pod'dur (veya Pod grubudur). Ingress objeleri tek başlarına hiçbir şey yapmaz; trafiği yönlendirmek için bir Ingress Controller'a ihtiyaç duyarlar. Ingress Controller, bir Kubernetes kümesinin dışında da çalışabilen, ancak genellikle küme içinde Deployment veya DaemonSet olarak dağıtılan özel bir uygulamadır.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Neden ve Ne İşe Yarar?</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Ingress Kurallarını Uygulama:** Ingress kaynaklarında tanımlanan host, path, backend service gibi kuralları okur ve bunları altta yatan yük dengeleyici veya proxy üzerinde yapılandırır.</li>
+                    <li>**Trafik Yönlendirme:** Gelen HTTP/HTTPS isteklerini doğru Servislere ve dolayısıyla Pod'lara yönlendirir.</li>
+                    <li>**TLS Sonlandırma:** Ingress kaynağında belirtilen Secret'ları kullanarak HTTPS trafiğini sonlandırır.</li>
+                    <li>**Özelleştirilebilir Davranış:** Birçok Ingress Controller, Kubernetes `Ingress` objesine ek olarak kendi özel kaynaklarını (Custom Resources) veya anotasyonları (annotations) kullanarak gelişmiş yapılandırma seçenekleri sunar (örneğin, yeniden yazma kuralları, hız sınırlama, kimlik doğrulama).</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Popüler Ingress Controller Türleri:</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Nginx Ingress Controller:** En yaygın ve popüler Ingress Controller'lardan biridir. Ters proxy olarak Nginx'i kullanır. Hem HTTP hem de HTTPS trafiği için gelişmiş yönlendirme ve yapılandırma seçenekleri sunar.</li>
+                    <li>**Traefik:** Cloud-native bir ters proxy ve yük dengeleyicidir. Dinamik yapılandırma özelliğiyle bilinir ve Kubernetes ile derin entegrasyonu vardır.</li>
+                    <li>**HAProxy Ingress Controller:** HAProxy tabanlı bir başka güçlü Ingress Controller'dır.</li>
+                    <li>**Cloud Sağlayıcılarına Özel Ingress Controller'lar:**
+                        <ul>
+                            <li>**AWS ALB Ingress Controller (şimdiki AWS Load Balancer Controller):** AWS Application Load Balancer (ALB) kullanarak Ingress kurallarını uygular.</li>
+                            <li>**GCE Ingress Controller (Google Kubernetes Engine):** Google Cloud Load Balancer'ları kullanarak Ingress'i yönetir.</li>
+                            <li>**Azure Application Gateway Ingress Controller (AGIC):** Azure Application Gateway'i kullanarak Ingress'i sağlar.</li>
+                        </ul>
+                    </li>
+                    <li>**Istio Ingress Gateway:** Bir servis ağı olan Istio'nun bir parçasıdır ve trafiği kümenin içine yönlendirmek için bir giriş noktası sağlar.</li>
+                </ul>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">Ingress Controller'ın Rolü</h4>
+                    <div class="flex flex-col items-center justify-center w-full">
+                        <div class="diagram-node">
+                            <span class="ingress-icon">🚦</span>
+                            <div class="label-box">Ingress Kaynağı</div>
+                            <p class="text-xs text-gray-700 mt-1">(Kurallar: Host, Path, Service)</p>
+                        </div>
+                        <span class="diagram-arrow">↓ İzleme</span>
+                        <div class="diagram-node">
+                            <span class="controller-icon">🤖</span>
+                            <div class="label-box">Ingress Controller</div>
+                            <p class="text-xs text-gray-700 mt-1">(Kubernetes API'yi İzler)</p>
+                        </div>
+                        <span class="diagram-arrow">↓ Yapılandırma</span>
+                        <div class="diagram-node bg-gray-100 border-gray-400">
+                            <span class="external-icon">🌐</span>
+                            <div class="label-box">Fiziksel Yük Dengeleyici / Proxy</div>
+                            <p class="text-xs text-gray-700 mt-1">(Nginx, ALB, Traefik)</p>
+                        </div>
+                        <span class="diagram-arrow">↓ Gelen Trafik</span>
+                        <div class="diagram-node">
+                            <span class="service-icon">✅</span>
+                            <div class="label-box">Kubernetes Servisleri</div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">Ingress Controller, Ingress kaynaklarını okur ve altta yatan trafik yönlendirme mekanizmasını yapılandırır.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="karsilastirma" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Ingress ve LoadBalancer Tipi Service Karşılaştırması</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Uygulamaları dışarıya açmak için hem `Ingress` hem de `LoadBalancer` tipli `Service` kullanılabilir. Ancak, her birinin farklı kullanım senaryoları ve avantajları vardır.
+            </p>
+            <div class="overflow-x-auto">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Özellik</th>
+                            <th>Ingress</th>
+                            <th>LoadBalancer Tipi Service</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>**Ana Amaç**</td>
+                            <td>HTTP/HTTPS trafiğini host/path kurallarına göre Servislere yönlendirme, TLS sonlandırma.</td>
+                            <td>TCP/UDP trafik yük dengelemesi, bir Servisi harici bir IP ile açığa çıkarma.</td>
+                        </tr>
+                        <tr>
+                            <td>**Protokol Desteği**</td>
+                            <td>HTTP, HTTPS (Katman 7).</td>
+                            <td>TCP, UDP (Katman 4). HTTP/HTTPS de kullanabilir, ancak gelişmiş yönlendirme için değil.</td>
+                        </tr>
+                        <tr>
+                            <td>**Maliyet**</td>
+                            <td>Tek bir Ingress Controller arkasında birden fazla uygulama barındırılabilir, maliyet etkin olabilir.</td>
+                            <td>Genellikle her LoadBalancer Service için ayrı bir bulut yük dengeleyici (ve maliyet) oluşur.</td>
+                        </tr>
+                        <tr>
+                            <td>**Gelişmiş Yönlendirme**</td>
+                            <td>Host tabanlı (Virtual Hosts), Path tabanlı yönlendirme, URL yeniden yazma, kimlik doğrulama gibi özellikler.</td>
+                            <td>Basit TCP/UDP port yönlendirmesi ve yük dengeleme.</td>
+                        </tr>
+                        <tr>
+                            <td>**TLS Yönetimi**</td>
+                            <td>Ingress objesi üzerinden merkezi TLS sonlandırma ve sertifika yönetimi (Kubernetes Secret ile).</td>
+                            <td>LoadBalancer'ın kendisi TLS sonlandırma yapabilir (bulut sağlayıcısına bağlı olarak), ancak Kubernetes içinde doğrudan yönetimi yoktur.</td>
+                        </tr>
+                        <tr>
+                            <td>**Bağımlılık**</td>
+                            <td>Çalışmak için bir Ingress Controller'a ihtiyaç duyar.</td>
+                            <td>Bulut sağlayıcınızın yük dengeleyici hizmetine doğrudan bağımlıdır.</td>
+                        </tr>
+                        <tr>
+                            <td>**Ne Zaman Kullanılır?**</td>
+                            <td>Çoklu web uygulaması/API, host/path tabanlı yönlendirme, merkezi TLS, CDN entegrasyonu gerektiğinde.</td>
+                            <td>TCP/UDP tabanlı servisler (veritabanları, Redis), basit HTTP/HTTPS açma, her servisin kendi harici IP'sine ihtiyacı olduğunda.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="sonuc" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Sonuç</h2>
+            <p class="text-lg text-gray-700 leading-relaxed">
+                Kubernetes'te `Ingress` ve `Ingress Controller` ikilisi, uygulamalarınıza dış dünyadan HTTP ve HTTPS trafiğini merkezi, esnek ve maliyet etkin bir şekilde yönlendirmek için güçlü bir çözüm sunar. Ingress objeleri, trafiğin nasıl yönlendirileceğini bildirimsel olarak tanımlarken, Ingress Controller'lar bu kuralları altta yatan yük dengeleyiciler veya ters proxy'ler üzerinde hayata geçirir.
+            </p>
+            <p class="text-lg text-gray-700 leading-relaxed mt-4">
+                `LoadBalancer` tipi Servisler basit dışa açma senaryoları için uygun olsa da, `Ingress` gelişmiş trafik yönetimi, TLS sonlandırma ve host/path tabanlı yönlendirme gibi yetenekler sunarak modern, çoklu servisli uygulamalar için daha tercih edilen bir çözümdür. Doğru Ingress Controller'ı seçmek ve Ingress kaynaklarını etkin bir şekilde yapılandırmak, Kubernetes'teki uygulamalarınızın dışarıdan erişilebilirliğini ve performansını optimize etmek için hayati öneme sahiptir.
+            </p>
+        </section>
+    </main>
+    
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2025 Kubernetes Ingress Anlatım. Tüm hakları saklıdır.</p>
+            <p class="text-sm text-gray-400 mt-2">Bu belge, Kubernetes Ingress ve Ingress Controller kavramlarını detaylı açıklamak amacıyla oluşturulmuştur.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
