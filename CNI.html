@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes CNI Çözümleri: Calico ve Cilium</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Tech Blue, Gray, Green (Connection), Orange (Flow) -->
+    <!-- Application Structure Plan: This document is a standalone HTML guide dedicated to Kubernetes CNI solutions, specifically Calico and Cilium. It follows a logical progression: starting with a general introduction to CNI, then providing detailed sections for Calico and Cilium, followed by a comprehensive comparison. Each CNI section includes its core features, working mechanisms, and use cases, supported by custom HTML/CSS diagrams for visual clarity. The comparison section features a table summarizing key differences. The linear structure is chosen for didactic clarity, allowing users to deeply understand each CNI and their distinctions. -->
+    <!-- Visualization & Content Choices: 
+        - CNI Overview Diagram: HTML/CSS diagram showing Pods, Nodes, and CNI connecting them with conceptual arrows. Goal: Illustrate basic CNI function.
+        - Calico L3 Routing Diagram: HTML/CSS diagram depicting Layer 3 routing and BGP for Calico's packet flow. Goal: Explain Calico's core networking.
+        - Cilium eBPF Flow Diagram: HTML/CSS diagram illustrating eBPF's low-level packet interception and processing for Cilium. Goal: Explain Cilium's core networking.
+        - Comparison Table: Summarizes key features, performance, policy capabilities, and observability for Calico and Cilium. Goal: Compare/Inform.
+        - All diagrams use plain HTML/CSS (Tailwind for layout, simple boxes and Unicode characters for icons/arrows).
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1f2937;
+        }
+        .section-header {
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .content-card {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+        }
+        .diagram-box {
+            background-color: #e0f2fe; /* Light blue for diagram backgrounds */
+            border: 1px solid #93c5fd;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: 100%;
+            max-width: 800px; /* Max width for diagrams */
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .diagram-node {
+            background-color: #fff;
+            border: 1px solid #3b82f6;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+        }
+        .diagram-arrow {
+            font-size: 1.5rem;
+            color: #2563eb;
+            margin: 0.2rem 0;
+        }
+        .connection-line {
+            height: 2px;
+            background-color: #10b981; /* Green for connections */
+            width: 80%;
+            margin: 0.5rem 0;
+        }
+        .pod-representation {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0.5rem;
+        }
+        .pod-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+        }
+        .pod-label {
+            font-size: 0.8rem;
+            background-color: #f0f9ff;
+            border: 1px solid #bfdbfe;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            white-space: nowrap;
+        }
+        .node-container {
+            border: 2px solid #60a5fa;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .node-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #1d4ed8;
+        }
+        .cni-box {
+            background-color: #d1fae5; /* Light green for CNI */
+            border: 1px solid #34d399;
+            border-radius: 0.5rem;
+            padding: 0.5rem 1rem;
+            margin-top: 1rem;
+            font-weight: 600;
+            color: #065f46;
+            text-shadow: 0 1px 1px rgba(255,255,255,0.7);
+        }
+        .calico-color { color: #f97316; } /* Orange for Calico */
+        .cilium-color { color: #22c55e; } /* Green for Cilium */
+        .tech-box {
+            background-color: #fef3c7;
+            border: 1px solid #fbbf24;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #9a3412;
+            margin: 0.3rem;
+        }
+        .packet-flow-arrow {
+            font-size: 1.2rem;
+            color: #ef4444; /* Red for packet flow */
+            margin: 0 0.5rem;
+        }
+    </style>
+</head>
+<body class="scroll-smooth">
+
+    <header class="bg-blue-600 text-white py-6 text-center shadow-md">
+        <div class="container mx-auto px-6">
+            <h1 class="text-3xl md:text-4xl font-bold">Kubernetes CNI Çözümleri: Calico ve Cilium</h1>
+            <p class="text-lg mt-2">Konteyner Ağ Arayüzleri ile Pod'lar arası iletişimi ve ağ politikalarını anlayın.</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section id="giris-cni" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Giriş: CNI (Container Network Interface) Nedir?</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Kubernetes, konteynerleştirilmiş uygulamalarınızı dağıtır, yönetir ve ölçeklendirir. Ancak, Pod'lar arasındaki ve Pod'larla dış dünya arasındaki ağ iletişimini sağlayan temel bir bileşene ihtiyaç duyar. İşte bu noktada **CNI (Container Network Interface)** devreye girer.
+            </p>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                CNI, Linux konteynerleri için ağ yapılandırmasını sağlamak amacıyla tasarlanmış bir belirtim (specification) ve standarttır. Temel görevi, konteynerlerin ağ kaynaklarına bağlanması için bir arayüz tanımlamaktır. Kubernetes, CNI eklentilerini kullanarak Pod'lara IP adresleri atar, sanal ağ arayüzleri oluşturur ve Pod'ların birbirleriyle ve küme dışındaki hizmetlerle iletişim kurmasını sağlar. Bir CNI eklentisi olmadan Kubernetes kümeniz düzgün çalışamaz.
+            </p>
+            <div class="diagram-box">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">CNI'nın Görevi: Pod İletişimi</h3>
+                <div class="flex flex-wrap justify-center items-start w-full">
+                    <div class="node-container">
+                        <div class="node-title">Düğüm 1</div>
+                        <span class="pod-icon">📦</span><div class="pod-label">Pod A (10.0.1.2)</div>
+                        <div class="cni-box mt-4">CNI Eklentisi</div>
+                    </div>
+                    <div class="flex flex-col items-center justify-center mx-4 md:mx-8">
+                        <span class="diagram-arrow">🌐</span>
+                        <p class="text-sm text-gray-600 mt-1">Küme Ağı</p>
+                    </div>
+                    <div class="node-container">
+                        <div class="node-title">Düğüm 2</div>
+                        <span class="pod-icon">📦</span><div class="pod-label">Pod B (10.0.2.3)</div>
+                        <div class="cni-box mt-4">CNI Eklentisi</div>
+                    </div>
+                </div>
+                <div class="connection-line mt-6"></div>
+                <p class="text-sm text-gray-500 mt-4">CNI, farklı düğümlerdeki Pod'ların birbirleriyle iletişim kurmasını sağlar.</p>
+            </div>
+        </section>
+
+        <section id="calico" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header"><span class="calico-color">Calico</span>: Ölçeklenebilir Ağ ve Güvenlik</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **Calico**, konteynerler, sanal makineler ve ana bilgisayar tabanlı iş yükleri için ölçeklenebilir ağ ve ağ politikası sağlayan açık kaynaklı bir CNI çözümüdür. Saf bir **Layer 3 (Katman 3)** yaklaşımını benimser ve ağ katmanında IP yönlendirmeyi kullanarak doğrudan Pod'lar arası iletişimi mümkün kılar. Genellikle overlay ağlarının (örneğin VXLAN) getirdiği ek yükten kaçınmasıyla bilinir.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Çalışma Şekli ve Özellikleri:</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**IP Yönlendirme ve BGP:** Calico, düğümler arası trafik yönlendirmesi için genellikle BGP (Border Gateway Protocol) kullanır. Her düğüm, kendi üzerindeki Pod IP'leri için rotaları BGP aracılığıyla diğer düğümlere duyurur. Bu, Pod IP'lerinin küme içindeki tüm düğümler tarafından doğrudan yönlendirilebilir olmasını sağlar.</li>
+                    <li>**Veri Düzlemi Esnekliği:** NetworkPolicy'leri uygulamak için varsayılan olarak Linux çekirdeğinin `iptables` mekanizmasını kullanır. Ancak, Calico'nun yeni sürümlerinde `eBPF` veri düzlemi de mevcuttur. Bu esneklik, farklı altyapı gereksinimlerine ve performans hedeflerine uyum sağlamasına olanak tanır.</li>
+                    <li>**Geniş Kapsamlı Ağ Politikaları:** Standart Kubernetes NetworkPolicy'lerini tamamen uygular. Bunun yanı sıra, kendi özel kaynakları olan `GlobalNetworkPolicy` ve `NetworkPolicy` (Calico CRD'leri) ile gelişmiş özellikler sunar:
+                        <ul>
+                            <li>`Deny` (reddetme) kuralları (Kubernetes yerel politikalarında sadece izin verme kuralları vardır).</li>
+                            <li>Politika sıralaması/önceliği (hangi politikanın önce uygulanacağını belirleme).</li>
+                            <li>Daha esnek eşleştirme kriterleri (örneğin, ServiceAccount'lara göre eşleştirme).</li>
+                            <li>Sadece Pod'lara değil, sanal makinelere ve hatta ana bilgisayar arayüzlerine de politika uygulayabilir.</li>
+                        </ul>
+                    </li>
+                    <li>**IP-in-IP ve VXLAN Desteği:** Saf Layer 3 yaklaşıma ek olarak, farklı ağ topolojilerinde çalışabilmek için IP-in-IP tünelleme veya VXLAN gibi overlay ağlarını da destekler.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Calico Mimarisi (Basitleştirilmiş)</h3>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">Calico ile Ağ İletişimi</h4>
+                    <div class="flex items-center w-full justify-center">
+                        <div class="node-container border-blue-400">
+                            <div class="node-title">Düğüm 1</div>
+                            <span class="pod-icon">📦</span><div class="pod-label">Pod A</div>
+                            <div class="cni-box bg-orange-100 border-orange-400 calico-color mt-4">Calico Agent</div>
+                            <div class="tech-box">iptables / eBPF</div>
+                        </div>
+                        <div class="flex flex-col items-center mx-4 md:mx-8">
+                            <span class="packet-flow-arrow">⟶</span>
+                            <p class="text-sm text-gray-600 font-semibold">L3 Yönlendirme / BGP</p>
+                            <span class="packet-flow-arrow">⟶</span>
+                        </div>
+                        <div class="node-container border-blue-400">
+                            <div class="node-title">Düğüm 2</div>
+                            <span class="pod-icon">📦</span><div class="pod-label">Pod B</div>
+                            <div class="cni-box bg-orange-100 border-orange-400 calico-color mt-4">Calico Agent</div>
+                            <div class="tech-box">iptables / eBPF</div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">Calico, Pod IP'leri için BGP aracılığıyla doğrudan yönlendirme yapar ve politikaları iptables veya eBPF ile uygular.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="cilium" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header"><span class="cilium-color">Cilium</span>: eBPF ile Gelişmiş Güvenlik ve Gözlemlenebilirlik</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **Cilium**, **eBPF (extended Berkeley Packet Filter)** teknolojisini temel alan, bulut yerel uygulamalar için gelişmiş ağ, güvenlik ve gözlemlenebilirlik sağlayan modern bir CNI eklentisidir. eBPF'in gücünden yararlanarak Linux çekirdeğindeki paket işlemeyi doğrudan ve çok daha verimli bir şekilde yapar, geleneksel `iptables` bazlı yaklaşımları tamamen atlar.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Çalışma Şekli ve Özellikleri:</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**eBPF Odaklı Veri Düzlemi:** Cilium, ağ ve güvenlik politikalarını uygulamak için yalnızca eBPF'i kullanır. eBPF programları, paketleri çekirdek seviyesinde, ağ yığınının erken bir aşamasında yakalayarak işler. Bu, daha düşük gecikme süresi ve yüksek verim sağlar.</li>
+                    <li>**Kimlik Tabanlı Güvenlik:** NetworkPolicy'leri sadece IP adreslerine göre değil, Kubernetes etiketleri, servis hesapları ve namespace'ler gibi kimliklere göre uygulayabilir. Bu, dinamik mikroservis ortamlarında "sıfır güven" (zero-trust) mimarileri için çok önemlidir.</li>
+                    <li>**Katman 7 (L7) Politikaları:** Standart Kubernetes NetworkPolicy'lerinin ötesine geçerek HTTP, gRPC gibi uygulama katmanı protokollerine dayalı güvenlik politikaları tanımlama yeteneği sunar. Bu, daha granüler ve uygulama bilinci olan güvenlik kontrolleri sağlar (örneğin, HTTP GET isteğine izin ver, POST isteğini engelle).</li>
+                    <li>**Yerleşik Servis Ağı (Service Mesh) Entegrasyonu:** Sidecar proxy'lere ihtiyaç duymadan Servis Ağı yetenekleri (örneğin trafik yönetimi, karşılıklı TLS - mTLS) sunabilir. Bu, uygulama performansını artırırken karmaşıklığı azaltır.</li>
+                    <li>**Hubble ile Derin Gözlemlenebilirlik:** Cilium ile birlikte gelen açık kaynaklı bir gözlemlenebilirlik platformu olan Hubble'ı kullanır. Hubble, servisler arası iletişim, DNS sorguları, düşen paketler ve hatta HTTP metot çağrıları hakkında gerçek zamanlı, derinlemesine görünürlük sağlar. Bu, hata ayıklama ve güvenlik denetimi için paha biçilmezdir.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Cilium Mimarisi (Basitleştirilmiş)</h3>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">Cilium ile Ağ İletişimi (eBPF Odaklı)</h4>
+                    <div class="flex items-center w-full justify-center">
+                        <div class="node-container border-blue-400">
+                            <div class="node-title">Düğüm (Kernel Alanı)</div>
+                            <div class="flex items-center my-2">
+                                <span class="packet-flow-arrow">Paket</span>
+                                <div class="tech-box">Ağ Arayüzü</div>
+                            </div>
+                            <div class="tech-box bg-green-100 border-green-400 cilium-color">eBPF Programı</div>
+                            <span class="diagram-arrow">↓</span>
+                            <div class="pod-icon">📦</div><div class="pod-label">Pod</div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">Cilium, eBPF programlarını çekirdeğe yükleyerek paketleri erken aşamada işler ve politika uygular.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="karsilastirma" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Calico ve Cilium: Benzerlikler ve Farklar</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Hem Calico hem de Cilium, Kubernetes kümesindeki Pod'lar için ağ iletişimi ve NetworkPolicy uygulaması sağlamak amacıyla tasarlanmış güçlü CNI çözümleridir. Her ikisi de Kubernetes'in temel gereksinimlerini karşılar, ancak farklı felsefeler ve teknik yaklaşımlar benimserler.
+            </p>
+
+            <h3 class="text-2xl font-bold text-gray-800 mb-4">Benzerlikler:</h3>
+            <ul class="list-disc list-inside text-gray-700 mb-6 pl-4 leading-relaxed">
+                <li>**Kubernetes NetworkPolicy Desteği:** Her ikisi de standart Kubernetes NetworkPolicy API'sini uygular ve Pod'lar arası iletişimi kontrol etmek için kullanılabilir.</li>
+                <li>**Ölçeklenebilirlik:** Büyük ve dinamik Kubernetes kümelerinde çalışacak şekilde tasarlanmışlardır.</li>
+                <li>**Güvenlik Odaklı:** Ağ segmentasyonu ve güvenlik politikası uygulama yetenekleri sunarak küme güvenliğini artırırlar.</li>
+                <li>**Açık Kaynak:** Her ikisi de açık kaynaklı projelerdir ve geniş, aktif topluluklara sahiptir.</li>
+                <li>**Hibrit/Çoklu Bulut Desteği:** Çeşitli bulut ortamlarında ve şirket içi altyapılarda dağıtılabilir.</li>
+            </ul>
+
+            <h3 class="text-2xl font-bold text-gray-800 mb-4">Farklar:</h3>
+            <div class="overflow-x-auto">
+                <table class="min-w-full bg-white rounded-lg shadow-sm text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-gray-200 text-gray-700 uppercase text-left">
+                            <th class="py-3 px-4 border-b border-gray-300">Özellik</th>
+                            <th class="py-3 px-4 border-b border-gray-300">Calico</th>
+                            <th class="py-3 px-4 border-b border-gray-300">Cilium</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="py-3 px-4 border-b border-gray-200 font-semibold">Ana Teknoloji (Veri Düzlemi)</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Çoğunlukla `iptables` tabanlı, isteğe bağlı `eBPF` veri düzlemi. BGP yönlendirme.</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Sadece `eBPF` tabanlı. `iptables`ı atlar.</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 border-b border-gray-200 font-semibold">Performans</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Yüksek performans (özellikle BGP ile L3 yönlendirme). eBPF veri düzlemi ile daha da artırılabilir.</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Genellikle daha yüksek performans ve daha düşük gecikme (eBPF'in çekirdek içi doğası gereği).</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 border-b border-gray-200 font-semibold">Ağ Politikaları Genişliği</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Standart Kubernetes NP'nin ötesinde `Deny` kuralları, politika sıralaması, daha fazla eşleşme kriteri. Katman 3/4 odaklı.</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Katman 7 (L7) politikaları (HTTP, gRPC), kimlik tabanlı güvenlik, daha granüler kontrol.</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 border-b border-gray-200 font-semibold">Gözlemlenebilirlik</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Temel loglama ve metrikler. Derinlemesine gözlemlenebilirlik için harici araç (Prometheus/Grafana) entegrasyonu gerekir.</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Hubble (yerleşik) ile derinlemesine ağ görünürlüğü, L7 trafik izleme, olay günlüğü.</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 border-b border-gray-200 font-semibold">Servis Ağı Yetenekleri</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Istio gibi ayrı bir servis ağı çözümü ile entegrasyon gerektirir.</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Yerleşik veya daha sıkı entegre servis ağı yetenekleri sunar, bazı durumlarda sidecar gereksinimini ortadan kaldırır.</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 border-b border-gray-200 font-semibold">Kurulum ve Karmaşıklık</td>
+                            <td class="py-3 px-4 border-b border-gray-200">Genellikle daha basit ve köklü bir geçmişe sahiptir, yaygın olarak benimsenmiştir.</td>
+                            <td class="py-3 px-4 border-b border-gray-200">eBPF entegrasyonu nedeniyle başlangıçta biraz daha karmaşık olabilir, ancak sağladığı yetenekler bu karmaşıklığı haklı çıkarır.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="sonuc" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Sonuç: Hangi CNI'yi Seçmelisiniz?</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Calico ve Cilium arasındaki seçim, projenizin özel gereksinimlerine, performans beklentilerine ve operasyonel tercihlerine bağlıdır:
+            </p>
+            <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                <li>**Calico'yu Seçin Eğer:**
+                    <ul>
+                        <li>Karmaşık ve gelişmiş ağ politikalarına (deny kuralları, politika önceliği) ihtiyacınız varsa.</li>
+                        <li>BGP yönlendirme veya mevcut ağ altyapınızla derin entegrasyon gereksinimleriniz varsa.</li>
+                        <li>Hibrit veya çoklu bulut ortamlarında kanıtlanmış bir esneklik ve geniş uyumluluk arıyorsanız.</li>
+                        <li>Daha köklü ve geniş topluluk desteğine sahip bir çözüm tercih ediyorsanız.</li>
+                    </ul>
+                </li>
+                <li>**Cilium'u Seçin Eğer:**
+                    <ul>
+                        <li>Maksimum ağ performansı ve düşük gecikme süresi kritik önem taşıyorsa.</li>
+                        <li>Uygulama katmanında (L7) güvenlik politikaları (HTTP isteklerine göre filtreleme) gibi gelişmiş kontrollere ihtiyacınız varsa.</li>
+                        <li>Derin ağ görünürlüğü ve gözlemlenebilirlik (Hubble aracılığıyla) bir öncelikse.</li>
+                        <li>eBPF teknolojisinin sağladığı avantajlardan tam olarak yararlanmak ve geleceğe yönelik bir çözüm arıyorsanız.</li>
+                    </ul>
+                </li>
+            </ul>
+            <p class="text-lg text-gray-700 leading-relaxed">
+                Her iki CNI de Kubernetes kümenizin ağ ve güvenlik ihtiyaçlarını karşılayabilir, ancak sundukları farklı avantajları göz önünde bulundurarak bilinçli bir karar vermek önemlidir.
+            </p>
+        </section>
+    </main>
+    
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2025 Kubernetes CNI Çözümleri. Tüm hakları saklıdır.</p>
+            <p class="text-sm text-gray-400 mt-2">Bu belge, Kubernetes CNI çözümlerini açıklamayı amaçlamaktadır.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
