@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes PDB: Pod Kesinti Bütçesi Detayları</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Tech Blue, Gray, Green (Available), Red (Unavailable), Orange (Eviction) -->
+    <!-- Application Structure Plan: This standalone HTML document is dedicated to Kubernetes Pod Disruption Budget (PDB). It starts with an introduction to managing disruptions, differentiating voluntary and involuntary disruptions. It then details what PDB is, why it's crucial for high availability during voluntary disruptions, and how it works with 'minAvailable' and 'maxUnavailable' fields. A key section illustrates PDB's role during a 'kubectl drain' operation with a visual diagram. Practical YAML examples are provided, followed by important considerations and a conclusion summarizing its importance. The linear structure aims for clear and detailed understanding. -->
+    <!-- Visualization & Content Choices: 
+        - PDB Overview Diagram: HTML/CSS diagram illustrating PDB protecting Pods during node drain, showing allowed/disallowed evictions. Goal: Visually explain PDB's purpose.
+        - All diagrams use plain HTML/CSS (Tailwind for layout, simple boxes and Unicode characters for icons/arrows).
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1f2937;
+        }
+        .section-header {
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .content-card {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+        }
+        pre {
+            background-color: #1f2937;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-family: 'monospace', 'Inter';
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .diagram-box {
+            background-color: #e0f2fe; /* Light blue for diagram backgrounds */
+            border: 1px solid #93c5fd;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: 100%;
+            max-width: 800px; /* Max width for diagrams */
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .diagram-node {
+            background-color: #fff;
+            border: 1px solid #3b82f6;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+        }
+        .diagram-arrow {
+            font-size: 1.5rem;
+            color: #2563eb;
+            margin: 0.2rem 0;
+        }
+        .pod-representation {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0.5rem;
+        }
+        .pod-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #6366f1; /* Indigo for pods */
+        }
+        .pod-label {
+            font-size: 0.8rem;
+            background-color: #e0e7ff;
+            border: 1px solid #c7d2fe;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            white-space: nowrap;
+        }
+        .node-box {
+            background-color: #f1f5f9;
+            border: 1px solid #94a3b8;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .pdb-box {
+            background-color: #fef3c7; /* Light orange for PDB */
+            border: 1px solid #fbbf24;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+            color: #9a3412;
+        }
+        .available-pod {
+            color: #10b981; /* Green for available */
+        }
+        .unavailable-pod {
+            color: #ef4444; /* Red for unavailable */
+        }
+    </style>
+</head>
+<body class="scroll-smooth">
+
+    <header class="bg-blue-600 text-white py-6 text-center shadow-md">
+        <div class="container mx-auto px-6">
+            <h1 class="text-3xl md:text-4xl font-bold">Kubernetes PDB: Pod Kesinti Bütçesi Detayları</h1>
+            <p class="text-lg mt-2">Gönüllü kesintiler sırasında uygulamalarınızın yüksek kullanılabilirliğini sağlayın.</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section id="giris" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Giriş: Kesintileri Yönetmek</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Kubernetes kümelerinde, düğüm bakımı, küme yükseltmeleri veya ölçeklendirme gibi operasyonel nedenlerle Pod'ların bir düğümden diğerine taşınması veya yeniden başlatılması gerekebilir. Bu tür olaylar, uygulamaların hizmet kesintisi yaşamasına neden olabilir. Kubernetes'te kesintiler iki ana kategoriye ayrılır:
+            </p>
+            <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                <li>**İstemsiz Kesintiler (Involuntary Disruptions):** Düğüm çökmesi, kernel panik, düğümün ağ bağlantısının kesilmesi veya fiziksel donanım arızası gibi kontrol dışı olaylardır. Kubernetes'in kendini iyileştirme mekanizmaları (örneğin ReplicaSet'ler) bu durumlarda Pod'ları başka sağlıklı düğümlere yeniden planlayarak uygulamaları kurtarmaya çalışır.</li>
+                <li>**Gönüllü Kesintiler (Voluntary Disruptions):** Yöneticinin veya otomatik araçların kasıtlı olarak bir Pod'u bir düğümden tahliye etmesiyle oluşan kesintilerdir. Örnekler:
+                    <ul>
+                        <li>`kubectl drain` komutu ile düğüm bakımı (işletim sistemi yükseltmesi, donanım değişimi).</li>
+                        <li>Küme yükseltmesi veya düğüm havuzu ölçeklendirmesi.</li>
+                        <li>Hata veren Pod'ları veya düğümleri kümeden çıkarma.</li>
+                    </ul>
+                </li>
+            </ul>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                **Pod Disruption Budget (PDB - Pod Kesinti Bütçesi)**, özellikle bu **gönüllü kesintiler** sırasında bir uygulamanın minimum kullanılabilirlik düzeyini garanti altına almak için tasarlanmış bir Kubernetes API objesidir. PDB, bir uygulamanın kaç Pod'unun aynı anda kullanılamaz durumda olabileceğini belirleyerek, operasyonel eylemlerin uygulama kararlılığını bozmasını engeller.
+            </p>
+        </section>
+
+        <section id="nedir-ne-ise-yarar" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">1. Pod Disruption Budget (PDB) Nedir ve Ne İşe Yarar?</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **Pod Disruption Budget (PDB)**, Kubernetes'te bir uygulamanın çalışır durumda kalması gereken minimum kopya sayısını veya aynı anda kullanılamayacak maksimum kopya sayısını tanımlamanıza olanak tanıyan bir kaynaktır. PDB, özellikle `kubectl drain` gibi gönüllü kesinti eylemleri sırasında devreye girer. Bu sayede, yöneticiler düğüm bakımı gibi işlemleri güvenle yapabilirken, uygulamaların hizmet kalitesinin düşmemesi veya tamamen kesintiye uğramaması sağlanır.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Neden ve Ne İşe Yarar?</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Uygulama Yüksek Erişilebilirliği:** Bir düğüm tahliye edilirken bile, uygulamanın kritik sayıda Pod'unun çalışır durumda kalmasını sağlayarak hizmet kesintisini önler.</li>
+                    <li>**Gönüllü Kesinti Kontrolü:** `kubectl drain` veya küme otomatik yükseltme araçları gibi mekanizmaların, PDB tarafından belirlenen sınırlamalara uymasını sağlar.</li>
+                    <li>**Operasyonel Güvenlik:** Altyapı bakımı veya yükseltmeler sırasında, uygulama sahiplerinin belirlediği tolerans seviyelerinin aşılmamasını garanti eder.</li>
+                    <li>**Servis Düzeyi Anlaşmaları (SLA):** Uygulamaların SLA'larını korumasına yardımcı olur.</li>
+                </ul>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">PDB'nin Etkisi: Drain Sırasında</h4>
+                    <div class="flex flex-col items-center w-full">
+                        <div class="pdb-box">
+                            <span class="text-3xl">🛡️</span>
+                            <div class="pod-label">PDB (minAvailable: 2)</div>
+                            <p class="text-xs text-gray-700 mt-1">Uygulama Kopyaları: 3</p>
+                        </div>
+                        <span class="diagram-arrow">↓ Kural Uygulanır</span>
+                        <div class="node-box">
+                            <h5 class="font-semibold text-gray-800">Düğüm (Tahliye Ediliyor)</h5>
+                            <span class="pod-icon available-pod">📦</span><div class="pod-label">Pod A</div>
+                            <span class="pod-icon available-pod">📦</span><div class="pod-label">Pod B</div>
+                            <span class="pod-icon available-pod">📦</span><div class="pod-label">Pod C</div>
+                        </div>
+                        <span class="diagram-arrow">↓ `kubectl drain` (Tahliye Talebi)</span>
+                        <div class="flex items-center justify-center w-full">
+                            <div class="node-box">
+                                <h5 class="font-semibold text-gray-800">Düğüm A</h5>
+                                <span class="pod-icon available-pod">📦</span><div class="pod-label">Pod A</div>
+                                <span class="pod-icon unavailable-pod">❌</span><div class="pod-label">Pod B (Tahliye Edildi)</div>
+                                <span class="pod-icon available-pod">📦</span><div class="pod-label">Pod C</div>
+                                <p class="text-xs text-gray-700 mt-2">Mevcut: 2 (OK)</p>
+                            </div>
+                            <span class="diagram-arrow mx-4">⟶</span>
+                            <div class="node-box">
+                                <h5 class="font-semibold text-gray-800">Düğüm B</h5>
+                                <p class="text-xs text-gray-700 mt-1">Yeni Pod'lar</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-4">PDB, aynı anda sadece bir Pod'un tahliye edilmesine izin vererek uygulamanın minimum kullanılabilirliğini korur.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="nasil-calisir" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">2. PDB Nasıl Çalışır?</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    PDB, bir Pod'un tahliye edilip edilemeyeceğini belirlemek için Kubernetes API'si ile etkileşime girer. Bir `kubectl drain` komutu veya başka bir tahliye işlemi başlatıldığında, Kubernetes, tahliye edilecek Pod'ların ait olduğu PDB'leri kontrol eder. PDB'deki kurallara göre, tahliye işlemi onaylanır veya reddedilir.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Temel Alanlar:</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>`spec.selector`: Bu PDB'nin hangi Pod'ları koruduğunu belirleyen bir etiket seçicidir. Bu seçici, bir `Deployment`, `StatefulSet` veya `ReplicaSet`'in `selector`'ı ile eşleşmelidir.</li>
+                    <li>`spec.minAvailable`: Uygulamanın çalışır durumda kalması gereken minimum Pod sayısını veya yüzdesini belirtir. Örneğin, `minAvailable: 2` iki Pod'un her zaman çalışır durumda olmasını garanti eder. `minAvailable: 50%` ise toplam Pod sayısının en az yarısının çalışır durumda olmasını garanti eder.</li>
+                    <li>`spec.maxUnavailable`: Uygulamanın aynı anda kullanılamaz durumda olabilecek maksimum Pod sayısını veya yüzdesini belirtir. Örneğin, `maxUnavailable: 1` aynı anda sadece bir Pod'un kullanılamaz olmasına izin verir. `maxUnavailable: 25%` ise toplam Pod sayısının en fazla %25'inin kullanılamaz olmasına izin verir. (Genellikle `minAvailable` veya `maxUnavailable`'tan sadece biri kullanılır.)</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek YAML:</h3>
+                <p class="text-gray-700 mb-2 leading-relaxed">
+                    Aşağıdaki örnek PDB, `app: my-app` etiketine sahip Pod'lardan en az 2'sinin her zaman çalışır durumda olmasını garanti eder. Eğer uygulamanın 3 kopyası varsa, `kubectl drain` aynı anda sadece 1 Pod'u tahliye edebilir.
+                </p>
+                <pre><code>
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: my-app-pdb
+spec:
+  minAvailable: 2 # En az 2 Pod'un her zaman çalışır olmasını sağla
+  selector:
+    matchLabels:
+      app: my-app # Bu PDB'nin koruduğu Pod'ları seç
+                </code></pre>
+                <p class="text-gray-700 mt-4 leading-relaxed">
+                    **Veya `maxUnavailable` ile:**
+                </p>
+                <pre><code>
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: my-app-pdb-max-unavailable
+spec:
+  maxUnavailable: 1 # Aynı anda en fazla 1 Pod'un kullanılamaz olmasına izin ver
+  selector:
+    matchLabels:
+      app: my-app
+                </code></pre>
+            </div>
+        </section>
+
+        <section id="kullanim-senaryolari" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">3. Kullanım Senaryoları</h2>
+            <div class="content-card">
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Düğüm Yükseltmeleri:** Küme yöneticileri, düğümleri güvenli bir şekilde yükseltebilir veya yamalayabilirken, PDB sayesinde uygulamalar minimum kesintiyle çalışmaya devam eder.</li>
+                    <li>**Düğüm Bakımı:** Bir düğümde planlı bakım (örneğin bellek ekleme, disk değişimi) yapmadan önce Pod'ların güvenli bir şekilde tahliye edilmesi.</li>
+                    <li>**Otomatik Ölçeklendirme (Downscaling):** Küme otomatik ölçeklendiricileri, düğümleri küçültürken (downscale) PDB kurallarına uyarak uygulamanın çalışır durumda kalmasını sağlar.</li>
+                    <li>**StatefulSet'ler:** Veritabanları gibi durum bilgisi olan uygulamalar için PDB'ler, replikaların minimum sayısının korunmasını sağlayarak veri kaybını veya hizmet kesintisini önler.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="onemli-hususlar" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">4. Önemli Hususlar ve Sınırlamalar</h2>
+            <div class="content-card">
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Sadece Gönüllü Kesintiler:** PDB'ler yalnızca gönüllü kesintilere karşı koruma sağlar. Bir düğüm aniden çökerse (istemsiz kesinti), PDB bunu önleyemez. Ancak Kubernetes'in diğer denetleyicileri (Deployment, StatefulSet) Pod'ları yeniden planlayarak kurtarmaya çalışacaktır.</li>
+                    <li>**Çakışan PDB'ler:** Aynı Pod'ları hedefleyen birden fazla PDB oluşturmaktan kaçının. Bu, beklenmeyen davranışlara yol açabilir.</li>
+                    <li>**`minAvailable` / `maxUnavailable` seçimi:** Bu değerleri doğru ayarlamak kritik öneme sahiptir. Çok kısıtlayıcı bir PDB, bakım işlemlerini engelleyebilirken, çok gevşek bir PDB uygulamayı koruyamayabilir. Uygulamanızın toleransını ve replika sayısını göz önünde bulundurun.</li>
+                    <li>**`kubectl drain --force`:** `--force` bayrağı kullanıldığında, `kubectl drain` PDB'yi göz ardı edebilir ve Pod'ları zorla tahliye edebilir. Bu nedenle `--force` kullanımında dikkatli olunmalıdır.</li>
+                    <li>**Tekil Pod'lar (Bare Pods):** PDB'ler, bir kontrolör (Deployment, StatefulSet, ReplicaSet) tarafından yönetilmeyen tekil Pod'ları korumaz. PDB'ler Pod'ların tahliyesini engeller, ancak tahliye edilen Pod'ların başka bir yerde yeniden planlanmasını garanti etmez; bu, kontrolörün görevidir.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="sonuc" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Sonuç</h2>
+            <p class="text-lg text-gray-700 leading-relaxed">
+                Pod Disruption Budget (PDB), Kubernetes kümelerinde uygulamaların yüksek kullanılabilirliğini sağlamak için hayati bir araçtır, özellikle de gönüllü kesintilerle başa çıkarken. PDB'ler, yöneticilerin düğüm bakımı ve yükseltmeler gibi işlemleri güvenle gerçekleştirmesine olanak tanırken, uygulamanın minimum çalışır durumdaki kopya sayısını garanti eder. Bu, hizmet kesintilerini en aza indirir ve uygulama operasyonlarının güvenilirliğini artırır. Kubernetes'te yüksek kullanılabilirliğe sahip uygulamalar çalıştırıyorsanız, PDB'leri doğru bir şekilde yapılandırmak, operasyonel süreçlerinizin ayrılmaz bir parçası olmalıdır.
+            </p>
+        </section>
+    </main>
+    
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2025 Kubernetes PDB Detaylı Anlatım. Tüm hakları saklıdır.</p>
+            <p class="text-sm text-gray-400 mt-2">Bu belge, Kubernetes Pod Disruption Budget'ı detaylı açıklamak amacıyla oluşturulmuştur.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
