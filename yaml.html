@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes YAML Yapıları Detaylı Anlatım</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Cool Neutrals & Tech Blue -->
+    <!-- Application Structure Plan: This single HTML file is organized as a detailed reference guide for essential Kubernetes YAML structures (ConfigMap, Secret, Deployment, PersistentVolumeClaim, Service). Each structure is presented in its own dedicated section, including a comprehensive explanation, common use cases, and a practical YAML code example. This linear, document-style structure is chosen for clarity and ease of reference for users seeking in-depth information on these specific Kubernetes objects. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: ConfigMap, Secret, Deployment, PersistentVolumeClaim, Service YAML structures. Goal: Inform/Reference. Viz/Method: Extensive textual explanations for each structure, accompanied by real-world YAML code examples. Interaction: Static document for reading and copying code. Justification: Provides in-depth, actionable information for practical Kubernetes usage. Method: Pure HTML/Tailwind for structured text and code blocks.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1f2937;
+        }
+        .section-header {
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .content-card {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+        }
+        pre {
+            background-color: #1f2937;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-family: 'monospace', 'Inter';
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body class="scroll-smooth">
+
+    <header class="bg-blue-600 text-white py-6 text-center shadow-md">
+        <div class="container mx-auto px-6">
+            <h1 class="text-3xl md:text-4xl font-bold">Kubernetes YAML Yapıları: Detaylı Anlatım</h1>
+            <p class="text-lg mt-2">Kubernetes'te sıkça kullanılan temel yapılandırma dosyalarını ve amaçlarını keşfedin.</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section id="giris" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Giriş</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">Kubernetes, tüm kaynaklarını bildirimsel (declarative) YAML dosyaları aracılığıyla yönetir. Bu, istediğiniz son durumu tanımladığınız ve Kubernetes'in bu duruma ulaşmak için gerekli adımları attığı anlamına gelir. Bu bölümde, Kubernetes'te en sık kullanılan YAML yapılarını detaylı bir şekilde inceleyeceğiz: ConfigMap, Secret, Deployment, PersistentVolumeClaim (PVC) ve Service. Her bir yapının amacını, kullanım senaryolarını ve örnek YAML kodlarını bulacaksınız.</p>
+        </section>
+
+        <section id="configmap" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">1. ConfigMap</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **ConfigMap**, uygulama yapılandırma verilerini Pod'lardan ayırmak için kullanılan bir Kubernetes API objesidir. Bu, uygulama kodunu değiştirmeden yapılandırma ayarlarını kolayca güncellemenizi sağlar. Hassas olmayan (non-sensitive) verileri depolamak için idealdir. Örneğin, veritabanı bağlantı dizeleri, loglama seviyeleri, API URL'leri gibi bilgileri ConfigMap'lerde saklayabilirsiniz.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Kullanım Senaryoları:</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>Uygulama ortam değişkenlerini yönetme.</li>
+                    <li>Yapılandırma dosyalarını (örneğin `nginx.conf`, `application.properties`) Pod'lara bağlama.</li>
+                    <li>Komut satırı argümanları sağlama.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek YAML:</h3>
+                <pre><code>
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: uygulama-ayarlari
+data:
+  # Key-value çiftleri olarak yapılandırma verileri
+  API_URL: "http://api.example.com/v1"
+  DATABASE_HOST: "mysql-service"
+  LOG_LEVEL: "INFO"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      containers:
+      - name: myapp-container
+        image: your-app-image:latest
+        ports:
+        - containerPort: 80
+        envFrom: # ConfigMap'ten ortam değişkenlerini yükleme
+        - configMapRef:
+            name: uygulama-ayarlari
+        volumeMounts: # ConfigMap'i dosya olarak bağlama
+        - name: app-config-volume
+          mountPath: "/etc/app-config"
+          readOnly: true
+      volumes:
+      - name: app-config-volume
+        configMap:
+          name: uygulama-ayarlari
+          items:
+          - key: API_URL
+            path: api_url.txt
+          - key: DATABASE_HOST
+            path: db_host.txt
+                </code></pre>
+            </div>
+        </section>
+
+        <section id="secret" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">2. Secret</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **Secret**'lar, parolalar, API anahtarları, OAuth tokenları ve SSH anahtarları gibi hassas bilgileri depolamak ve yönetmek için kullanılır. ConfigMap'ler gibi hassas olmayan verilerden farklı olarak, Secret'lar hassas veriler için tasarlanmıştır. Kubernetes, Secret'ları Pod'lara ortam değişkenleri veya dosya sistemi aracılığıyla güvenli bir şekilde enjekte etmenin birden fazla yolunu sunar. Veriler `base64` ile kodlanmış olarak saklanır, ancak bu bir şifreleme değildir; sadece bir kodlamadır. Hassas verilerinizin gerçekten güvende olduğundan emin olmak için ek güvenlik önlemleri (örneğin, şifreleme çözümleri) almanız önerilir.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Kullanım Senaryoları:</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>Veritabanı kimlik bilgileri (kullanıcı adı, parola).</li>
+                    <li>API anahtarları ve tokenlar.</li>
+                    <li>Özel SSH anahtarları.</li>
+                    <li>TLS sertifikaları ve anahtarları.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek YAML:</h3>
+                <pre><code>
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-database-secret
+type: Opaque # Varsayılan tip, genellikle hassas veriler için kullanılır
+data:
+  # base64 kodlanmış değerler
+  # echo -n 'myuser' | base64
+  DB_USERNAME: bXl1c2Vy
+  # echo -n 'mypassword' | base64
+  DB_PASSWORD: bXlwYXNzd29yZA==
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database-app-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: database-app
+  template:
+    metadata:
+      labels:
+        app: database-app
+    spec:
+      containers:
+      - name: database-app-container
+        image: your-db-app-image:latest
+        ports:
+        - containerPort: 80
+        env: # Secret'tan ortam değişkeni olarak yükleme
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: my-database-secret
+              key: DB_USERNAME
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: my-database-secret
+              key: DB_PASSWORD
+        volumeMounts: # Secret'ı dosya olarak bağlama
+        - name: secret-volume
+          mountPath: "/etc/secrets"
+          readOnly: true
+      volumes:
+      - name: secret-volume
+        secret:
+          secretName: my-database-secret
+                </code></pre>
+            </div>
+        </section>
+
+        <section id="deployment" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">3. Deployment</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **Deployment**, durum bilgisiz (stateless) uygulamalar için Pod ve ReplicaSet yönetimini kolaylaştıran yüksek seviyeli bir Kubernetes kaynağıdır. Uygulamanızın istenen durumunu tanımlar (kaç kopya, hangi imaj, hangi portlar vb.) ve Kubernetes Deployment Controller bu durumu korumak için gerekli Pod'ları ve ReplicaSet'leri otomatik olarak yönetir. Kesintisiz güncellemeler (rolling updates) ve kolay geri alma (rollback) yetenekleri sunar.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Kullanım Senaryoları:</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>Web uygulamaları ve API'ler gibi durum bilgisi olmayan hizmetleri dağıtma.</li>
+                    <li>Uygulama sürüm güncellemeleri yapma (sıfır kesintiyle).</li>
+                    <li>Uygulama sürümünü önceki bir stabil duruma geri alma.</li>
+                    <li>Uygulama kopyalarını yatay olarak ölçeklendirme.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek YAML:</h3>
+                <pre><code>
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-server-deployment
+  labels:
+    app: web-server
+spec:
+  replicas: 3 # 3 adet Pod kopyası çalıştır
+  selector:
+    matchLabels:
+      app: web-server
+  template: # Pod şablonu - bu Deployment'ın oluşturacağı Pod'ların tanımı
+    metadata:
+      labels:
+        app: web-server
+    spec:
+      containers:
+      - name: nginx-container
+        image: nginx:latest # Nginx imajını kullan
+        ports:
+        - containerPort: 80 # Konteynerin açığa çıkardığı port
+        resources: # Konteyner için kaynak limitleri ve istekleri
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+      affinity: # Pod'ların düğümlere nasıl dağıtılacağını belirler
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: web-server
+            topologyKey: "kubernetes.io/hostname" # Aynı düğümde birden fazla Pod olmasını engeller
+                </code></pre>
+            </div>
+        </section>
+
+        <section id="pvc" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">4. PersistentVolumeClaim (PVC)</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **PersistentVolumeClaim (PVC)**, bir kullanıcının veya uygulamanın bir `PersistentVolume` (PV) için yaptığı depolama isteğidir. PV'ler, küme yöneticileri tarafından sağlanan veya dinamik olarak oluşturulan fiziksel depolama birimlerini temsil ederken, PVC'ler bu depolamayı talep eden Pod'lar için bir soyutlama katmanı sağlar. Bu sayede, Pod'lar hangi depolama teknolojisinin kullanıldığını bilmek zorunda kalmadan kalıcı depolama isteyebilir. PVC'ler genellikle durum bilgisi olan (stateful) uygulamalar (örneğin veritabanları) için kullanılır, çünkü bu uygulamaların verileri konteynerlerin yaşam döngüsünden bağımsız olarak kalıcı olmalıdır.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Kullanım Senaryoları:</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>Veritabanı verilerini kalıcı olarak depolama.</li>
+                    <li>Uygulama loglarını veya kullanıcı yüklemelerini depolama.</li>
+                    <li>Sıra dışı veya büyük veri setlerini işleyen uygulamalar için depolama sağlama.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek YAML:</h3>
+                <pre><code>
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-app-data-pvc
+spec:
+  accessModes: # Erişim modları
+    - ReadWriteOnce # Tek bir düğümden yazma/okuma
+  resources:
+    requests:
+      storage: 5Gi # 5 Gigabayt depolama alanı isteği
+  storageClassName: standard # Kullanılacak depolama sınıfı (Cloud'da GCE, AWS EBS vb.)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stateful-app-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stateful-app
+  template:
+    metadata:
+      labels:
+        app: stateful-app
+    spec:
+      containers:
+      - name: stateful-app-container
+        image: your-stateful-app-image:latest
+        volumeMounts:
+        - name: app-persistent-storage
+          mountPath: "/data" # Konteyner içinde verinin bağlanacağı yol
+      volumes:
+      - name: app-persistent-storage
+        persistentVolumeClaim:
+          claimName: my-app-data-pvc # Yukarıda tanımlanan PVC'ye referans
+                </code></pre>
+            </div>
+        </section>
+
+        <section id="service" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">5. Service</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **Service** (Hizmet), kümedeki Pod'lara ağ trafiğini eşleyen bir Kubernetes kaynağıdır. Pod'lar geçici olduğu ve IP adresleri değişebileceği için, Servisler Pod'ların önüne geçerek onlara sabit bir erişim noktası ve yük dengeleme yeteneği sağlar. Bu sayede, Pod'lar yeniden oluşturulsa bile uygulamalar Servis üzerinden istikrarlı bir şekilde erişilebilir kalır. Farklı Servis türleri, uygulamanızın küme içinde mi yoksa küme dışında mı erişilebilir olacağını belirler.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Kullanım Senaryoları:</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>Küme içindeki diğer Pod'ların bir dizi Pod'a erişmesini sağlama (Microservices iletişimi).</li>
+                    <li>Uygulamanın dışarıdan (internet üzerinden) erişilebilir olmasını sağlama.</li>
+                    <li>Yük dengeleme ve trafik dağıtımı yapma.</li>
+                    <li>Sabit bir DNS adı ve IP adresi sağlama.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek YAML:</h3>
+                <pre><code>
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-web-service
+spec:
+  selector:
+    app: web-server # Bu Servis'in trafiği yönlendireceği Pod'lar için etiket seçici
+  ports:
+    - protocol: TCP
+      port: 80 # Servis'in dinleyeceği port
+      targetPort: 80 # Pod'ların dinlediği port
+      nodePort: 30080 # (NodePort tipi için isteğe bağlı) Düğümde açılacak port
+  type: LoadBalancer # Servis tipi: ClusterIP, NodePort, LoadBalancer, ExternalName
+                </code></pre>
+                <p class="text-gray-700 mt-4 leading-relaxed">
+                    **Servis Tipleri:**
+                    <ul class="list-disc list-inside text-gray-700 mt-2 pl-4 leading-relaxed">
+                        <li><span class="font-semibold">ClusterIP:</span> Varsayılan tiptir. Servis'i yalnızca küme içinde erişilebilir sabit bir IP adresi altında birleştirir. Mikroservisler arası iletişim için kullanılır.</li>
+                        <li><span class="font-semibold">NodePort:</span> Her çalışan düğümde belirli bir port açarak Servis'i küme dışına açar. Küme dışından erişim için temel bir yoldur, ancak genellikle gelişim/test ortamlarında kullanılır.</li>
+                        <li><span class="font-semibold">LoadBalancer:</span> Servis'i bulut sağlayıcısının (AWS, GCP, Azure vb.) bir yük dengeleyicisi aracılığıyla dışarıya açar. İnternetten erişim için tercih edilen yoldur. Bulut sağlayıcınızda otomatik olarak bir yük dengeleyici oluşturur.</li>
+                        <li><span class="font-semibold">ExternalName:</span> Bir DNS CNAME kaydı döndürerek Servis'i harici bir DNS adına eşler. Genellikle harici bir hizmeti küme içindeki Pod'lara açmak için kullanılır.</li>
+                    </ul>
+                </p>
+            </div>
+        </section>
+
+        <section id="sonuc" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Sonuç</h2>
+            <p class="text-lg text-gray-700 leading-relaxed">
+                ConfigMap, Secret, Deployment, PersistentVolumeClaim ve Service gibi temel Kubernetes YAML yapıları, konteynerli uygulamaları Kubernetes üzerinde etkili bir şekilde dağıtmak, yönetmek ve ağa açmak için kritik öneme sahiptir. Bu yapılar, uygulamanızın yaşam döngüsünü, yapılandırmasını, hassas verilerini ve ağ erişilebilirliğini bildirimsel bir şekilde tanımlamanıza olanak tanır. Bu kavramları ve YAML kullanımlarını anlamak, Kubernetes'te başarılı bir şekilde çalışmanın temelini oluşturur.
+            </p>
+        </section>
+    </main>
+    
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2025 Kubernetes YAML Yapıları Anlatım. Tüm hakları saklıdır.</p>
+            <p class="text-sm text-gray-400 mt-2">Bu belge, Kubernetes YAML yapılarını detaylı açıklamak amacıyla oluşturulmuştur.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
