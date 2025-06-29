@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>İnteraktif Kubernetes Rehberi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Cool Neutrals & Tech Blue -->
+    <!-- Application Structure Plan: The SPA is designed with a user-centric, thematic flow to make the complex topic of Kubernetes digestible. It moves from the "Why" (Giriş & Avantajlar), to the "How" (Mimariyi Keşfet & Temel Kavramlar), and finally to the "What else" (Ekosistem). This non-linear structure, supported by sticky navigation, allows both beginners and experienced users to explore content at their own pace. The core of the app is the interactive architecture diagram, which visually breaks down the complex master-worker relationship, turning passive reading into active exploration. Users click on components to reveal information, reinforcing learning through interaction. The detailed textual explanations are integrated within relevant sections, often below the interactive elements, providing depth for those who want to dive deeper without cluttering the initial interactive view. New sections for "Öğrenme Kaynakları" and "Sonuç" provide a complete learning path. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Kubernetes Architecture (Master/Worker Nodes and their components). Goal: Organize/Relationships. Viz/Method: Interactive diagram built with HTML/CSS (Tailwind Flexbox/Grid). Interaction: Clickable component "pills" update a central info panel. Justification: Visually demonstrates the structure and relationships far better than text alone, promoting discovery. Method: Vanilla JS DOM manipulation. Detailed text from the source report is added below the diagram for comprehensive understanding.
+        - Report Info: Core Concepts (Pods, Deployments, Services, Namespaces, Volumes, Controllers). Goal: Compare/Inform. Viz/Method: Tabbed interface. Interaction: Clicking tabs reveals dedicated content for each concept, now including more comprehensive descriptions and YAML code examples directly from the source report. Justification: Organizes distinct but related topics cleanly, preventing cognitive overload and allowing focused learning with practical examples. Method: Vanilla JS for tab switching logic.
+        - Report Info: Kubernetes Ecosystem (Docker, Helm, Prometheus, Istio, etc.). Goal: Relationships. Viz/Method: Donut Chart. Interaction: Hovering over segments shows tooltips. Justification: Provides a quick visual summary of the major tools. Detailed textual descriptions are provided alongside the chart, explaining each tool's role and importance based on the source report. Library: Chart.js.
+        - Report Info: Advantages. Goal: Inform. Viz/Method: Icon-based feature list with expanded textual explanations. Interaction: Static, but provides clear, scannable benefits with detailed supporting paragraphs from the source report. Justification: Quickly communicates key benefits in a visually appealing format, backed by comprehensive explanations. Method: HTML/Tailwind.
+        - Report Info: Introduction, Learning Resources, Conclusion. Goal: Inform. Viz/Method: Extensive textual content. Interaction: Scrolling and navigation. Justification: Provides foundational context, practical learning paths, and a forward-looking summary, ensuring the report is fully translated into the SPA. Method: HTML/Tailwind for structured text.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1f2937;
+        }
+        .nav-link {
+            transition: color 0.3s, border-bottom-color 0.3s;
+            border-bottom: 2px solid transparent;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+        }
+        .component-pill {
+            transition: background-color 0.3s, transform 0.2s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+        .component-pill:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        .component-pill.active {
+            background-color: #2563eb;
+            color: white;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+        }
+        .concept-tab {
+            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+        }
+        .concept-tab.active {
+            background-color: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 400px;
+            max-height: 50vh;
+        }
+        .scroll-smooth {
+             scroll-behavior: smooth;
+        }
+        .section {
+            padding-top: 5rem; 
+            padding-bottom: 5rem;
+        }
+        .sticky-nav {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            backdrop-filter: blur(10px);
+        }
+        .accordion-button {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 1rem;
+            background-color: #e2e8f0;
+            color: #1f2937;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .accordion-button:hover {
+            background-color: #cbd5e1;
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            background-color: #f1f5f9;
+            border-radius: 0.5rem;
+            margin-top: 0.5rem;
+            padding: 0 1.5rem;
+        }
+        .accordion-content.open {
+            max-height: 1000px; /* Arbitrary large value to allow content to expand */
+            transition: max-height 0.5s ease-in;
+            padding: 1rem 1.5rem;
+        }
+    </style>
+</head>
+<body class="scroll-smooth">
+
+    <header id="header" class="bg-white/80 shadow-md sticky-nav">
+        <nav class="container mx-auto px-6 py-3 flex justify-between items-center">
+            <div class="text-xl font-bold text-gray-800">
+                İnteraktif <span class="text-blue-600">k8s</span> Rehberi
+            </div>
+            <div class="hidden md:flex space-x-8">
+                <a href="#giris" class="nav-link px-2 py-1">Giriş</a>
+                <a href="#mimari" class="nav-link px-2 py-1">Mimari</a>
+                <a href="#kavramlar" class="nav-link px-2 py-1">Temel Kavramlar</a>
+                <a href="#avantajlar" class="nav-link px-2 py-1">Avantajlar</a>
+                <a href="#ekosistem" class="nav-link px-2 py-1">Ekosistem</a>
+                <a href="#kaynaklar" class="nav-link px-2 py-1">Kaynaklar</a>
+                <a href="#sonuc" class="nav-link px-2 py-1">Sonuç</a>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section id="giris" class="section text-center bg-white">
+            <div class="container mx-auto px-6">
+                <h1 class="text-4xl md:text-6xl font-bold mb-4">Kubernetes'i Keşfedin</h1>
+                <p class="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto mb-8">Konteynerli uygulamaların dağıtımını, ölçeklendirilmesini ve yönetimini otomatikleştiren açık kaynaklı platformu interaktif bir şekilde öğrenin.</p>
+                <p class="text-gray-700 max-w-4xl mx-auto mb-6">Kubernetes (genellikle "Kube" veya "k8s" olarak da bilinir), Google tarafından Go dilinde geliştirilmiş ve 2015 yılında açık kaynak olarak yayınlanmış, konteyner tabanlı uygulamaların dağıtımını, ölçeklendirilmesini ve yönetimini otomatikleştirmek için kullanılan açık kaynaklı bir konteyner orkestrasyon platformudur. "Kubernetes" kelimesi Yunanca kökenli olup "dümenci" veya "pilot" anlamına gelir, bu da platformun konteynerli iş yüklerini yönetme ve yönlendirme rolünü sembolize eder.</p>
+                <p class="text-gray-700 max-w-4xl mx-auto mb-8">Modern uygulamalar genellikle mikroservis mimarisinde geliştirilir ve Docker gibi araçlarla konteynerize edilir. Konteynerler, uygulama kodunu ve bağımlılıklarını izole edilmiş, taşınabilir birimler halinde paketler. Konteynerler, Sanal Makinelerden (VM'ler) daha hafif, kaynak açısından daha verimli ve daha taşınabilirdir; saniyeler içinde başlatılabilirler ve daha az CPU ve bellek kaynağı gerektirirler. Bu özellikler, onları modern bulut yerel uygulamaların fiili bilgi işlem birimleri haline getirmiştir.</p>
+                <a href="#mimari" class="bg-blue-600 text-white font-bold py-3 px-8 rounded-full hover:bg-blue-700 transition duration-300">Hemen Başla</a>
+            </div>
+        </section>
+
+        <section id="mimari" class="section">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-12">
+                    <h2 class="text-3xl md:text-4xl font-bold">Mimariyi Keşfet</h2>
+                    <p class="text-lg text-gray-600 mt-2 max-w-2xl mx-auto">Kubernetes kümesinin temel yapı taşlarını ve bileşenlerini tıklayarak öğrenin. Her bir bileşen, sistemin nasıl çalıştığını anlamanız için kilit bir rol oynar.</p>
+                </div>
+                
+                <div class="lg:flex lg:space-x-8">
+                    <div class="lg:w-2/3">
+                        <div class="bg-white p-6 rounded-2xl shadow-lg">
+                            <div class="text-center mb-4 font-semibold text-xl text-gray-700">Kubernetes Kümesi</div>
+                            <div class="relative border-2 border-dashed border-gray-300 rounded-xl p-4">
+                                
+                                <div id="control-plane" class="bg-blue-50 p-4 rounded-xl mb-4 border border-blue-200">
+                                    <h3 class="text-lg font-semibold text-center text-blue-800 mb-4">Kontrol Düzlemi (Master Node)</h3>
+                                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-center">
+                                        <div class="component-pill bg-blue-100 text-blue-800 rounded-full py-2 px-3 text-sm font-medium" data-component="etcd">etcd</div>
+                                        <div class="component-pill bg-blue-100 text-blue-800 rounded-full py-2 px-3 text-sm font-medium" data-component="api-server">kube-apiserver</div>
+                                        <div class="component-pill bg-blue-100 text-blue-800 rounded-full py-2 px-3 text-sm font-medium" data-component="scheduler">kube-scheduler</div>
+                                        <div class="component-pill bg-blue-100 text-blue-800 rounded-full py-2 px-3 text-sm font-medium" data-component="controller-manager">kube-controller-manager</div>
+                                        <div class="component-pill bg-blue-100 text-blue-800 rounded-full py-2 px-3 text-sm font-medium" data-component="cloud-controller-manager">cloud-controller-manager</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="grid md:grid-cols-2 gap-4">
+                                    <div class="bg-green-50 p-4 rounded-xl border border-green-200">
+                                        <h3 class="text-lg font-semibold text-center text-green-800 mb-4">Çalışan Düğüm 1 (Worker Node)</h3>
+                                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
+                                            <div class="component-pill bg-green-100 text-green-800 rounded-full py-2 px-3 text-sm font-medium" data-component="kubelet">kubelet</div>
+                                            <div class="component-pill bg-green-100 text-green-800 rounded-full py-2 px-3 text-sm font-medium" data-component="kube-proxy">kube-proxy</div>
+                                            <div class="component-pill bg-green-100 text-green-800 rounded-full py-2 px-3 text-sm font-medium" data-component="container-runtime">Container Runtime</div>
+                                        </div>
+                                    </div>
+                                    <div class="bg-green-50 p-4 rounded-xl border border-green-200">
+                                        <h3 class="text-lg font-semibold text-center text-green-800 mb-4">Çalışan Düğüm N (Worker Node)</h3>
+                                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
+                                            <div class="component-pill bg-green-100 text-green-800 rounded-full py-2 px-3 text-sm font-medium" data-component="kubelet">kubelet</div>
+                                            <div class="component-pill bg-green-100 text-green-800 rounded-full py-2 px-3 text-sm font-medium" data-component="kube-proxy">kube-proxy</div>
+                                            <div class="component-pill bg-green-100 text-green-800 rounded-full py-2 px-3 text-sm font-medium" data-component="container-runtime">Container Runtime</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="component-info" class="lg:w-1/3 mt-8 lg:mt-0 bg-white p-6 rounded-2xl shadow-lg">
+                        <h3 id="info-title" class="text-xl font-bold mb-2">Bileşen Detayları</h3>
+                        <p id="info-description" class="text-gray-600">Bir bileşenin görevini ve önemini görmek için üzerine tıklayın.</p>
+                        <div id="info-role" class="mt-4 text-sm"></div>
+                    </div>
+                </div>
+
+                <div class="mt-12 p-6 bg-white rounded-2xl shadow-lg">
+                    <h3 class="text-2xl font-bold mb-4">Genel Küme Yapısı: Master ve Worker Düğümler</h3>
+                    <p class="text-gray-700 mb-4">Bir Kubernetes kümesi, bir ana sunucu (Master Node) ve bir dizi çalışan düğümden (Worker Node) oluşur. Bu makineler, her sunucu arasında iletişim kurabilmek için bir ağ kurarak tek bir küme haline getirilir. Bu küme, tüm Kubernetes bileşenlerinin, işlevlerinin ve iş yüklerinin yapılandırıldığı fiziksel platformdur.</p>
+                    <p class="text-gray-700 mb-4 font-semibold">Ana Sunucu (Master Node):</p>
+                    <p class="text-gray-700 mb-4">Kümenin beyni olarak işlev görür. Tüm küme için yönetim, yapılandırma ve orkestrasyon kararlarını alır. Diğer sunucuların sağlık durumunu kontrol eder ve iş yüklerinin en iyi nasıl dağıtılacağına karar verir. Kullanıcılar ve yönetim araçları (örneğin `kubectl`) küme ile ilk olarak Master Node üzerindeki API aracılığıyla etkileşim kurar.</p>
+                    <p class="text-gray-700 mb-4 font-semibold">Çalışan Düğüm (Worker Node):</p>
+                    <p class="text-gray-700 mb-4">Uygulama ve hizmetleri çalıştıran makinelerdir. Her bir çalışan düğüm, konteyner çalıştırabilecek durumda olmalıdır (örneğin Docker Engine, rkt veya runc gibi bir konteyner motoru yüklü olmalıdır). Düğümler, ana sunucudan aldığı talimatlarla uygun şekilde konteynerleri oluşturur veya yok eder.</p>
+
+                    <h3 class="text-2xl font-bold mt-8 mb-4">Kontrol Düzlemi (Master Node) Bileşenleri Detaylı</h3>
+                    <p class="text-gray-700 mb-4">Kontrol düzlemi, kümenin genel durumunu yönetir ve yeni bir Pod oluşturulması isteğine karşılık uygun Worker Node üzerinde yeni Pod'un başlatılmasını tetikler. Kubernetes mimarisi, `etcd`'nin tek doğruluk kaynağı, `kube-apiserver`'ın merkezi iletişim noktası ve çeşitli denetleyicilerin (`kube-scheduler`, `kube-controller-manager`) sürekli olarak API sunucusunu izleyerek ve `etcd`'yi güncelleyerek kümenin istenen duruma doğru ilerlemesini sağladığı güçlü bir kontrol döngüsü üzerine kuruludur. Bu bildirimsel (declarative) yaklaşım, Kubernetes'in kendi kendini iyileştirme, otomatik ölçekleme ve dayanıklılık gibi temel yeteneklerinin temelini oluşturur.</p>
+                     <div class="overflow-x-auto my-6">
+                        <table class="min-w-full bg-white rounded-lg shadow-sm text-sm">
+                            <thead>
+                                <tr class="bg-gray-200 text-gray-700 uppercase text-left">
+                                    <th class="py-3 px-4">Bileşen Adı</th>
+                                    <th class="py-3 px-4">Görevi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="py-3 px-4 border-b border-gray-200">etcd</td>
+                                    <td class="py-3 px-4 border-b border-gray-200">Kümenin tüm yapılandırma verilerini, durumunu ve kalıcı bilgilerini depolayan dağıtılmış anahtar-değer deposu.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-3 px-4 border-b border-gray-200">kube-apiserver</td>
+                                    <td class="py-3 px-4 border-b border-gray-200">Tüm küme için merkezi yönetim noktası; gelen istekleri işler, doğrular ve etcd ile tek bağlantı kurar.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-3 px-4 border-b border-gray-200">kube-scheduler</td>
+                                    <td class="py-3 px-4 border-b border-gray-200">Yeni Pod'ları izler ve iş yükü gereksinimlerine göre uygun çalışan düğümlere yerleştirir.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-3 px-4 border-b border-gray-200">kube-controller-manager</td>
+                                    <td class="py-3 px-4 border-b border-gray-200">Kümenin istenen durumunu korumak için çeşitli denetleyicileri yönetir (örn. ReplicaSet).</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-3 px-4 border-b border-gray-200">cloud-controller-manager</td>
+                                    <td class="py-3 px-4 border-b border-gray-200">Kubernetes'in bulut sağlayıcılarıyla entegrasyonunu sağlar, buluta özgü özellikleri yönetir.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 class="text-2xl font-bold mt-8 mb-4">Çalışan Düğüm (Worker Node) Bileşenleri Detaylı</h3>
+                    <p class="text-gray-700 mb-4">Çalışan düğümler, Master Node'dan aldıkları talimatlarla konteynerli uygulamaları çalıştıran ve yöneten makinelerdir. Bu düğümler, iş yüklerini sorunsuz bir şekilde yürütmek için belirli bileşenlere ihtiyaç duyar.</p>
+                    <ul class="list-disc list-inside text-gray-700 space-y-2 pl-4">
+                        <li><span class="font-semibold">Konteyner Çalışma Zamanı (Container Runtime):</span> Her çalışan düğümde bir konteyner çalışma zamanı (örneğin Docker Engine, rkt veya runc) yüklü olmalıdır. Bu bileşen, konteynerleri başlatır, durdurur ve yönetir. Kubernetes, Docker konteynerlerinin yaşam döngüsünü otomatik hale getirerek altyapıyı daha ölçeklenebilir ve dayanıklı bir yapıya kavuşturur.</li>
+                        <li><span class="font-semibold">kubelet:</span> Her bir çalışan düğüm için ana iletişim noktasıdır. Master Node'dan gelen komutları alır, Pod özelliklerini (YAML veya JSON dosyaları) işler ve çalışması gereken konteynerlerin gerçekten çalıştığından emin olmak için konteyner motoruyla etkileşime girer. Ayrıca, Pod'ların depolama, sır (secrets) veya yapılandırma haritaları (configMaps) gibi kaynaklara erişimini sağlar.</li>
+                        <li><span class="font-semibold">kube-proxy:</span> Her düğüm sunucusunda çalışan küçük bir proxy hizmetidir. Konteynerlerin ağ bağlantısını yönetmekten, ana bilgisayar alt ağlarını korumaktan ve diğer bileşenlere hizmet sağlamaktan sorumludur. Bu işlemi genellikle `iptables` üzerinden yapar, talepleri doğru konteynerlere iletir ve ilkel bir yük dengelemesi gerçekleştirebilir.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section id="kavramlar" class="section bg-white">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-12">
+                    <h2 class="text-3xl md:text-4xl font-bold">Temel Kavramlar</h2>
+                    <p class="text-lg text-gray-600 mt-2 max-w-2xl mx-auto">Kubernetes'i oluşturan temel nesneleri ve soyutlamaları öğrenin. Bu kavramlar, uygulamalarınızın nasıl yönetildiğini anlamanın anahtarıdır.</p>
+                </div>
+                <div class="flex flex-col md:flex-row">
+                    <div id="concept-tabs" class="md:w-1/4 flex md:flex-col flex-wrap justify-center mb-6 md:mb-0">
+                    </div>
+                    <div id="concept-content" class="md:w-3/4 md:pl-8">
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section id="avantajlar" class="section">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-12">
+                    <h2 class="text-3xl md:text-4xl font-bold">Neden Kubernetes?</h2>
+                    <p class="text-lg text-gray-600 mt-2 max-w-2xl mx-auto">Kubernetes'in modern altyapılar için neden vazgeçilmez olduğunu temel avantajlarıyla anlayın.</p>
+                </div>
+                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                    <div class="text-center p-6">
+                        <div class="flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 text-blue-600 mx-auto mb-4 text-3xl">🚀</div>
+                        <h3 class="font-bold text-xl mb-2">Otomatik Ölçekleme</h3>
+                        <p class="text-gray-600">Uygulamaları talebe göre yatay olarak otomatik ölçeklendirerek performansı ve verimliliği artırır. CPU çıktıları ve diğer kaynak ölçümlerine göre örnekler ekler veya kaldırır. Bu, uygulamanın performansını korurken kaynak kullanımını optimize eder.</p>
+                    </div>
+                    <div class="text-center p-6">
+                        <div class="flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 text-blue-600 mx-auto mb-4 text-3xl">❤️‍🩹</div>
+                        <h3 class="font-bold text-xl mb-2">Kendi Kendini İyileştirme</h3>
+                        <p class="text-gray-600">Hata veren konteynerleri otomatik olarak yeniden başlatır veya değiştirir, sistemin dayanıklılığını sağlar. Eğer konteynerler arızalanırsa veya hiç çalışmazsa, Kubernetes bunları istenen duruma uyacak şekilde değiştirir veya yeniden başlatır. Bu, sistemin arıza durumunda otomatik olarak kendini kurtarmasını ve kesinti süresini en aza indirmesini sağlar.</p>
+                    </div>
+                    <div class="text-center p-6">
+                        <div class="flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 text-blue-600 mx-auto mb-4 text-3xl">⚙️</div>
+                        <h3 class="font-bold text-xl mb-2">Kesintisiz Dağıtım</h3>
+                        <p class="text-gray-600">Uygulama güncellemelerini sıfır kesintiyle yapar ve gerektiğinde hızlıca geri almanızı sağlar. Otomatik kullanıma sunma (rolling update) özelliği sayesinde, uygulama güncellemeleri kesinti olmadan gerçekleştirilebilir. Bu süreçte Kubernetes, önce yeni Pod'ları ayağa kaldırır, sorunsuz çalıştıklarından emin olduktan sonra eski Pod'ları devre dışı bırakır. Yanlışlıkla veya hatalı bir şekilde dağıtılan uygulama sürümleri durumunda, Kubernetes hızlı bir şekilde geri alma (rollback) yeteneği sunar.</p>
+                    </div>
+                    <div class="text-center p-6">
+                        <div class="flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 text-blue-600 mx-auto mb-4 text-3xl">☁️</div>
+                        <h3 class="font-bold text-xl mb-2">Hibrit & Çoklu Bulut</h3>
+                        <p class="text-gray-600">İş yüklerini şirket içi ve farklı bulut sağlayıcıları arasında tutarlı bir şekilde yönetme esnekliği sunar. Kubernetes, şirket içi (on-premises), genel bulut, özel bulut ve hibrit bulut ortamlarında çalışabilen taşınabilir bir platformdur. Bu, uygulamaların veya altyapının değiştirilmesini gerektirmeden iş yüklerinin farklı platformlar arasında taşınabilirliğini sağlar. Kubernetes'in açık kaynak doğası ve taşınabilirliği, satıcı kilitlenmesini (vendor lock-in) azaltmada güçlü bir araç görevi görür.</p>
+                    </div>
+                     <div class="text-center p-6">
+                        <div class="flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 text-blue-600 mx-auto mb-4 text-3xl">📊</div>
+                        <h3 class="font-bold text-xl mb-2">Kaynak Optimizasyonu</h3>
+                        <p class="text-gray-600">Konteynerlerin hafif yapısı ve Kubernetes'in akıllı zamanlama yetenekleri sayesinde, kaynaklar çok daha verimli kullanılır. Kubernetes, kaynak kullanımını optimize ederek operasyonel yükü ve maliyetleri azaltır. Uygulama başına daha az CPU ve bellek kaynağı gerektiren konteynerler, hipervizörler ve VM'lere göre daha iyi kaynak kullanımı sağlar.</p>
+                    </div>
+                    <div class="text-center p-6">
+                        <div class="flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 text-blue-600 mx-auto mb-4 text-3xl">🔒</div>
+                        <h3 class="font-bold text-xl mb-2">Güvenlik & Konfigürasyon</h3>
+                        <p class="text-gray-600">Kubernetes, şifreler, tokenlar ve SSH anahtarları gibi hassas bilgileri güvenli bir şekilde yönetmek için `Secret` gibi yerleşik mekanizmalar sunar. Kimlik yönetimi sağlamasa da, Kubernetes yetkilendirmeler için Rol Tabanlı Erişim Kontrolü (RBAC) modelini sunar. Bu sayede, farklı ekipler veya projeler için kaynak erişimi üzerinde ayrıntılı kontrol sağlanır.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="ekosistem" class="section bg-white">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-12">
+                    <h2 class="text-3xl md:text-4xl font-bold">Genişleyen Ekosistem</h2>
+                    <p class="text-lg text-gray-600 mt-2 max-w-2xl mx-auto">Kubernetes tek başına değildir. Gücünü, etrafında gelişen zengin araç ve proje ekosisteminden alır. En popüler araçları ve rollerini keşfedin.</p>
+                </div>
+                <div class="md:flex md:items-center md:space-x-8">
+                    <div class="md:w-1/2">
+                        <div class="chart-container">
+                            <canvas id="ecosystemChart"></canvas>
+                        </div>
+                    </div>
+                    <div id="ecosystem-info" class="md:w-1/2 mt-8 md:mt-0 space-y-4">
+                        <div class="accordion-item bg-white p-4 rounded-lg shadow">
+                            <button class="accordion-button">
+                                <h3 class="font-bold text-lg">Docker ve Konteyner Çalışma Zamanları</h3>
+                                <span class="accordion-icon text-2xl">+</span>
+                            </button>
+                            <div class="accordion-content">
+                                <p class="text-gray-600 text-sm pt-4 pb-4">Docker, Kubernetes'in temelinde yer alan en yaygın konteyner çalışma zamanıdır. Kubernetes, Docker konteynerlerinin yaşam döngüsünü otomatik hale getirir ve altyapının çok daha ölçeklenebilir ve dayanıklı bir yapıya kavuşmasını sağlar. Docker, uygulamaları ve bağımlılıklarını taşınabilir birimler halinde paketleyerek, Kubernetes'in bu birimleri verimli bir şekilde orkestre etmesini mümkün kılar. Docker'ın yanı sıra rkt ve runc gibi alternatif konteyner çalışma zamanları da kullanılabilir.</p>
+                            </div>
+                        </div>
+                        <div class="accordion-item bg-white p-4 rounded-lg shadow">
+                            <button class="accordion-button">
+                                <h3 class="font-bold text-lg">Helm: Paket Yöneticisi</h3>
+                                <span class="accordion-icon text-2xl">+</span>
+                            </button>
+                            <div class="accordion-content">
+                                <p class="text-gray-600 text-sm pt-4 pb-4">Helm, Kubernetes için bir paket yöneticisidir. Kubernetes uygulamalarının dağıtımını ve yönetimini basitleştirir. Helm, şablon tanımlarını `values.yaml` dosyasındaki yapılandırmalarla birleştirerek "release" adı verilen bir kurulum oluşturur. Her kurulum tekrarlandığında, release'in yeni bir sürümü oluşturulur, bu da gerektiğinde geri alma (rollback) konseptini destekler. Helm, karmaşık Kubernetes manifest dosyalarını yönetme yükünü azaltır ve uygulamaların tutarlı bir şekilde dağıtılmasını sağlar.</p>
+                            </div>
+                        </div>
+                        <div class="accordion-item bg-white p-4 rounded-lg shadow">
+                            <button class="accordion-button">
+                                <h3 class="font-bold text-lg">Prometheus & Grafana: İzleme ve Gözlemlenebilirlik</h3>
+                                <span class="accordion-icon text-2xl">+</span>
+                            </button>
+                            <div class="accordion-content">
+                                <p class="text-gray-600 text-sm pt-4 pb-4">Kubernetes ortamlarında izleme ve günlükleme, dağıtımlar ölçeklendikçe daha karmaşık hale gelir. Bu noktada Prometheus ve Grafana gibi araçlar kritik bir rol oynar. Prometheus, Kubernetes izlemesi için popüler bir seçimdir çünkü çok boyutlu veri modeli ve çeşitli otomatik keşif mekanizmalarına sahiptir. Grafana ise Prometheus'tan toplanan metrikleri görselleştirmek ve uyarılar oluşturmak için kullanılan isteğe bağlı bir araçtır. Bu entegrasyon, operatörlerin uygulama performansını ve sağlığını anlık olarak takip etmesini, olası sorunları önceden tespit etmesini ve sistem güvenilirliğini artırmasını sağlar.</p>
+                            </div>
+                        </div>
+                         <div class="accordion-item bg-white p-4 rounded-lg shadow">
+                            <button class="accordion-button">
+                                <h3 class="font-bold text-lg">Istio: Servis Ağı (Service Mesh)</h3>
+                                <span class="accordion-icon text-2xl">+</span>
+                            </button>
+                            <div class="accordion-content">
+                                <p class="text-gray-600 text-sm pt-4 pb-4">Istio, Kubernetes cluster'larına kurulan açık kaynaklı bir servis ağı (service mesh) ürünüdür. Mevcut uygulamaların üzerine ekstra kod değişikliği yapmaya gerek kalmadan güvenlik, trafik yönetimi ve gözlemlenebilirlik gibi altyapı yetenekleri ekler. Istio, mikroservisler arası iletişimi mTLS şifrelemesi ile güvenli hale getirir, otomatik yük dengeleme yapar, trafik davranışını ince ayar yapabilir ve tüm trafik için otomatik metrikler, loglar ve izler sağlar. Mimarisinde bir Kontrol Düzlemi ve her mikroservisin yanına yerleştirilen Envoy Proxy'lerden oluşan bir Veri Düzlemi bulunur.</p>
+                            </div>
+                        </div>
+                        <div class="accordion-item bg-white p-4 rounded-lg shadow">
+                            <button class="accordion-button">
+                                <h3 class="font-bold text-lg">Diğer Önemli Araçlar ve Eklentiler</h3>
+                                <span class="accordion-icon text-2xl">+</span>
+                            </button>
+                            <div class="accordion-content">
+                                <p class="text-gray-600 text-sm pt-4 pb-4">Kubernetes ekosistemi, çeşitli ihtiyaçları karşılamak üzere tasarlanmış çok sayıda başka araç ve eklentiye sahiptir. Bunlar arasında Pod'ların küme içinde ağa erişimini sağlayan <span class="font-semibold">Network Plugin'ler</span> (Calico, Flannel, Weave), kalıcı veri depolamak için kullanılan <span class="font-semibold">Storage Plugin'ler</span>, logları filtrelemek, arabelleğe almak ve yönlendirmek için <span class="font-semibold">Fluentd</span> gibi birleşik loglama çözümleri ve Custom Resource Definitions (CRD'ler) yönetimini otomatikleştiren <span class="font-semibold">Operatörler</span> bulunur.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="kaynaklar" class="section">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-12">
+                    <h2 class="text-3xl md:text-4xl font-bold">Öğrenme Kaynakları ve İpuçları</h2>
+                    <p class="text-lg text-gray-600 mt-2 max-w-2xl mx-auto">Kubernetes gibi kapsamlı bir platformu öğrenmek, doğru kaynaklarla daha verimli hale getirilebilir. Özellikle uygulamalı öğrenme, teorik bilginin pekiştirilmesi için önemlidir.</p>
+                </div>
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div class="bg-white p-6 rounded-2xl shadow-lg">
+                        <h3 class="text-xl font-bold mb-4">Başlangıç Seviyesi Kaynaklar</h3>
+                        <ul class="list-disc list-inside text-gray-700 space-y-2 pl-4">
+                            <li><span class="font-semibold">Online Kurslar ve Uygulamalı Platformlar:</span> KodeKloud gibi platformlar, tarayıcı tabanlı, birebir uygulamalı dersler sunarak Kubernetes'i öğrenmek için oldukça etkili bir yol sunar. BTK Akademi gibi yerel platformlar da Kubernetes'in temel kavramlarından orta seviyeye kadar bilgi sağlayan eğitimler sunmaktadır.</li>
+                            <li><span class="font-semibold">Resmi Dokümantasyon:</span> Kubernetes'in resmi dokümantasyonu, platform hakkında en güncel ve doğru bilgiyi sağlar. Başlangıç seviyesindeki kullanıcılar için temel kavramları anlamak adına değerli bir referans noktasıdır.</li>
+                            <li><span class="font-semibold">Blog Yazıları ve Rehberler:</span> Kubernetes'e giriş ve mimari gibi konularda detaylı açıklamalar sunan Türkçe blog yazıları ve rehberler bulunmaktadır.</li>
+                        </ul>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-lg">
+                        <h3 class="text-xl font-bold mb-4">İleri Seviye Kaynaklar ve Sertifikasyonlar</h3>
+                        <ul class="list-disc list-inside text-gray-700 space-y-2 pl-4">
+                            <li><span class="font-semibold">Kitaplar:</span> "Cloud Native DevOps with Kubernetes" gibi kitaplar, bulut yerel DevOps yaklaşımlarını Kubernetes ile birleştirerek kapsamlı bir bakış açısı sunar.</li>
+                            <li><span class="font-semibold">Sertifikasyonlar:</span> CKA (Certified Kubernetes Administrator) ve CKAD (Certified Kubernetes Application Developer) gibi sertifikasyonlar, Kubernetes yetkinliğini resmi olarak kanıtlamak için önemlidir. Bu sertifikalar, modern operasyonel roller için yüksek talep gören Kubernetes becerilerini pekiştirmeye yardımcı olur.</li>
+                            <li><span class="font-semibold">Topluluk Katkıları ve Geliştirici Belgeleri:</span> Kubernetes ekosistemindeki çeşitli projelerin (Prometheus, Envoy, CoreDNS, Helm, Istio gibi CNCF projeleri) dokümantasyonları ve GitHub depoları, platformun farklı yönleri hakkında derinlemesine bilgi edinmek için kullanılabilir.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="sonuc" class="section bg-white">
+            <div class="container mx-auto px-6 text-center">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Sonuç ve Gelecek Perspektifi</h2>
+                <p class="text-lg text-gray-600 max-w-4xl mx-auto mb-6">Kubernetes, Google'ın iç sistemlerinden ilham alarak ortaya çıkmış ve kısa sürede konteyner orkestrasyonunda fiili endüstri standardı haline gelmiş güçlü bir platformdur. Temel amacı, konteynerli uygulamaların dağıtımını, ölçeklendirilmesini ve yönetimini otomatikleştirmek, böylece uygulamaların öngörülebilirlik, yüksek kullanılabilirlik ve ölçeklenebilirlik ile çalışmasını sağlamaktır.</p>
+                <p class="text-lg text-gray-600 max-w-4xl mx-auto mb-6">Kubernetes'in başarısının ardında, modüler mimarisi, bildirimsel yönetim yaklaşımı ve geniş, aktif açık kaynak ekosistemi yatmaktadır. Kontrol düzlemi bileşenleri ve çalışan düğüm bileşenleri arasındaki sıkı entegrasyon ve sürekli kontrol döngüsü, sistemin kendi kendini iyileştirme, otomatik ölçekleme ve dayanıklılık gibi temel yeteneklerini mümkün kılar.</p>
+                <p class="text-lg text-gray-600 max-w-4xl mx-auto mb-6">Kubernetes'in geleceği, bulut yerel uygulama geliştirmenin ve DevOps pratiklerinin merkezinde yer almaya devam edeceğini göstermektedir. Sürekli gelişen ekosistemi, artan benimsenme oranları ve bulut sağlayıcılarının yönetilen hizmetler sunmasıyla, Kubernetes'in BT altyapılarında kritik bir rol oynamaya devam edeceği öngörülmektedir. Bu platformu öğrenmek ve ustalaşmak, modern yazılım geliştirme ve operasyon alanında kariyer yapmak isteyen profesyoneller için vazgeçilmez bir beceri haline gelmiştir.</p>
+            </div>
+        </section>
+
+    </main>
+    
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2025 İnteraktif Kubernetes Rehberi. Tüm hakları saklıdır.</p>
+            <p class="text-sm text-gray-400 mt-2">Bu uygulama, Kubernetes öğrenimini kolaylaştırmak amacıyla oluşturulmuştur.</p>
+        </div>
+    </footer>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    const architectureData = {
+        'etcd': {
+            title: 'etcd',
+            description: 'Kümenin tüm yapılandırma verilerini, durumunu ve diğer kalıcı bilgilerini depolayan, dağıtılmış ve yüksek erişilebilirliğe sahip bir anahtar-değer (key-value) deposudur.',
+            role: 'Rol: Kümenin beyni ve tek doğruluk kaynağı.'
+        },
+        'api-server': {
+            title: 'kube-apiserver',
+            description: 'Tüm kümenin ana yönetim noktasıdır. Hem içeriden hem de dışarıdan gelen istekleri kabul eder, doğrular, işler ve etcd ile tek bağlantıyı kurar.',
+            role: 'Rol: Kümenin giriş kapısı ve merkezi iletişim noktası.'
+        },
+        'scheduler': {
+            title: 'kube-scheduler',
+            description: 'Yeni oluşturulan Pod\'ları izler ve kaynak gereksinimlerine göre en uygun çalışan düğüme (Worker Node) yerleştirir.',
+            role: 'Rol: Akıllı iş yükü dağıtıcısı.'
+        },
+        'controller-manager': {
+            title: 'kube-controller-manager',
+            description: 'Kümenin genel durumunu düzenleyen farklı denetleyicileri (ReplicaSet, Node Controller vb.) yönetir. İstenen durum ile mevcut durum arasındaki farkı kapatmak için sürekli çalışır.',
+            role: 'Rol: Kümenin durumunu koruyan otomatik pilot.'
+        },
+        'cloud-controller-manager': {
+            title: 'cloud-controller-manager',
+            description: 'Kubernetes\'in AWS, Azure, GCP gibi bulut sağlayıcılarıyla entegre çalışmasını sağlar. Buluta özgü kaynakları (yük dengeleyiciler, depolama vb.) yönetir.',
+            role: 'Rol: Bulut sağlayıcılarla köprü kurar.'
+        },
+        'kubelet': {
+            title: 'kubelet',
+            description: 'Her çalışan düğümde (Worker Node) bulunan ana ajandır. Kontrol Düzlemi\'nden gelen komutları alır ve Pod\'ların çalışmasını sağlamak için konteyner motoruyla etkileşime girer.',
+            role: 'Rol: Düğümdeki orkestra şefi.'
+        },
+        'kube-proxy': {
+            title: 'kube-proxy',
+            description: 'Her düğümde çalışan bir ağ proxy\'sidir. Küme içindeki Servisler için ağ kurallarını yönetir ve gelen trafiği doğru Pod\'lara yönlendirir.',
+            role: 'Rol: Küme içi trafik polisi.'
+        },
+        'container-runtime': {
+            title: 'Container Runtime',
+            description: 'Konteynerleri fiilen çalıştıran yazılımdır. En bilinen örnekleri Docker, containerd ve CRI-O\'dur. Kubelet\'ten aldığı talimatlarla konteyner imajlarını çeker ve çalıştırır.',
+            role: 'Rol: Konteynerlerin motoru.'
+        }
+    };
+    
+    const conceptsData = {
+        'pod': {
+            title: 'Pod',
+            icon: '📦',
+            description: 'Kubernetes\'te bir **Pod**, oluşturulabilen ve yönetilebilen en küçük dağıtılabilir bilgi işlem birimidir. Bir Pod, paylaşılan depolama ve ağ kaynaklarına sahip bir veya daha fazla konteyner grubudur ve konteynerlerin nasıl çalıştırılacağına dair bir belirtim içerir. Bir Pod\'un içeriği her zaman birlikte konumlandırılır ve birlikte zamanlanır, paylaşılan bir bağlamda çalışır. Bu bağlam, Linux ad alanları ve cgroup\'lar gibi izolasyon yönlerini içerir. Podlar genellikle doğrudan oluşturulmaz; bunun yerine, `Deployment` veya `Job` gibi iş yükü kaynakları kullanılarak oluşturulur ve yönetilir. Podların iki ana kullanım şekli bulunur: tek bir konteyner çalıştıran Podlar (en yaygın model, Pod\'u bir sarmalayıcı olarak düşünmek) veya birlikte çalışması gereken birden çok sıkı bağlı konteyner çalıştıran Podlar (örneğin, birincil uygulamaya veri sağlayan bir "sidecar" konteyneri). Bir Pod içindeki konteynerler aynı IP adresini ve port alanını paylaşır, bu da onların `localhost` üzerinden iletişim kurabilmesini sağlar. Konteynerlerin ve Podların doğası gereği geçici (ephemeral) olması, yani konteynerin çökmesi veya durması durumunda içindeki verilerin kaybolması, kalıcı depolama ve stabil ağ erişimi için sağlam çözümlerin gerekliliğini ortaya koyar. Bu nedenle `Volume` ve `Service` gibi kavramlar, durum bilgisi olan (stateful) veya uzun süre çalışan uygulamaları Kubernetes üzerinde çalıştırmak için temel gereksinimlerdir.',
+            code: `apiVersion: v1\nkind: Pod\nmetadata:\n  name: nginx-pod\nspec:\n  containers:\n  - name: nginx\n    image: nginx:1.14.2\n    ports:\n    - containerPort: 80`
+        },
+        'deployment': {
+            title: 'Deployment',
+            icon: '🚀',
+            description: 'Bir **Deployment**, genellikle durum bilgisi tutmayan (stateless) uygulama iş yüklerini çalıştırmak için bir dizi Pod\'u yönetir. Deploymentlar, Pod\'lar ve ReplicaSet\'ler için bildirimsel güncellemeler sağlar. Bir Deployment\'ta istenen durum tanımlanır ve Deployment Controller, mevcut durumu kontrollü bir hızda istenen duruma getirir. Deployment\'ların tipik kullanım alanları şunlardır: Bir ReplicaSet\'i kullanıma sunmak ve Pod\'ları arka planda oluşturmak; Deployment\'ın PodTemplateSpec\'ini güncelleyerek Pod\'ların yeni durumunu bildirmek, bu sayede yeni bir ReplicaSet oluşturulur ve eski Pod\'lardan yenilerine kontrollü geçiş sağlanır (rolling update); Mevcut Deployment durumu kararlı değilse, önceki bir Deployment revizyonuna geri dönmek (rollback); Daha fazla yükü karşılamak için Deployment\'ı ölçeklendirmek; Birden fazla düzeltme uygulamak için Deployment\'ın kullanıma sunulmasını duraklatmak ve ardından yeni bir kullanıma sunma başlatmak için devam ettirmek; Eski ReplicaSet\'leri temizlemek.',
+            code: `apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: nginx-deployment\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: nginx\n  template:\n    metadata:\n      labels:\n        app: nginx\n    spec:\n      containers:\n      - name: nginx\n        image: nginx:1.14.2\n        ports:\n        - containerPort: 80`
+        },
+        'service': {
+            title: 'Service',
+            icon: '🌐',
+            description: 'Bir **Service** (Hizmet), kümedeki Pod\'lara ağ trafiğini eşleyen bir Kubernetes kaynağıdır. Küme içinde veya dışarıdan bir dizi Pod\'u ağ üzerinden erişilebilir kılmak için her seferinde bir Service oluşturulması gerekir. Servisler, Kubernetes ağ modelinin ayrılmaz bir parçasıdır ve alt düzey bileşenlerin soyutlamalarını sağlar. Servisler, Kubernetes kümelerinin dağıtılmış mimarisi nedeniyle gereklidir. Uygulamalar genellikle binlerce kopyaya sahip Pod\'lar olarak dağıtılır ve yüzlerce fiziksel düğüme yayılabilir. Bir kullanıcı uygulamayla etkileşim kurduğunda, isteğin mevcut kopyalardan herhangi birine yönlendirilmesi gerekir. Servisler, bu davranışı sağlamak için Pod\'ların önünde durur ve tüm ağ trafiği, mevcut Pod\'lardan birine yönlendirilmeden önce Servis\'e akar. Diğer uygulamalar, Servis\'in IP adresi veya DNS adı aracılığıyla Pod\'lara güvenilir bir şekilde erişebilir. Yaygın Servis türleri şunlardır: ClusterIP (yalnızca küme içinde erişilebilir sabit IP), NodePort (her düğümdeki belirli bir port üzerinden dışarıya açar), LoadBalancer (bulut sağlayıcısının yük dengeleyicisini kullanır), ExternalName (harici bir DNS adını eşler) ve Headless Service (yük dengeleme gerektirmeyen).',
+            code: `apiVersion: v1\nkind: Service\nmetadata:\n  name: nginx-service\nspec:\n  selector:\n    app: nginx\n  ports:\n    - protocol: TCP\n      port: 80\n      targetPort: 80\n  type: LoadBalancer`
+        },
+        'namespace': {
+            title: 'Namespace',
+            icon: '🏢',
+            description: 'Kubernetes **Namespace**\'leri (Ad Alanları), küme kaynaklarını birden fazla kullanıcı veya proje arasında bölme ve yönetme yöntemidir. Küme içinde izole edilmiş ortamlar oluşturarak kaynak çakışmasını önler ve yöneticilerin belirli kaynaklara erişimi kontrol etmesini sağlar. Her ad alanı, kendi kaynak setini barındırırken, politikaları ve rol tabanlı erişim kontrollerini (RBAC) tanımlamak için bir mekanizma sunar. Sonuç olarak, diğer ad alanlarındaki kaynakları etkilemeden bir ad alanına özgü kullanıcı izinleri ve kotalar atanabilir. Bu izolasyon, özellikle ayrı çalışma alanlarının sürdürülmesinin esas olduğu çok ekipli veya çok projeli ortamlarda faydalıdır. Kubernetes\'te varsayılan olarak `default`, `kube-public` ve `kube-node-lease` gibi ad alanları bulunur.',
+            code: `apiVersion: v1\nkind: Namespace\nmetadata:\n  name: uretim`
+        },
+        'volume': {
+            title: 'Volume',
+            icon: '💾',
+            description: 'Kubernetes **Volume**\'leri (Birimler), bir Pod içindeki konteynerlerin dosya sistemi aracılığıyla verilere erişmesi ve verileri paylaşması için bir mekanizma sağlar. Konteynerlerdeki disk üzerindeki dosyaların geçici (ephemeral) olması nedeniyle, yani bir konteyner çökerse veya durursa, ömrü boyunca oluşturulan veya değiştirilen tüm dosyaların kaybolması nedeniyle, bu birimler kritik öneme sahiptir. Birimler ayrıca, bir Pod içindeki birden çok konteynerin dosyaları paylaşması sorununu da çözer. Kubernetes, farklı amaçlar için kullanılabilecek çeşitli birim türlerini destekler: `emptyDir` (geçici depolama), `configMap` (yapılandırma verileri), `secret` (hassas bilgiler), `persistentVolumeClaim` (kalıcı depolama talebi) ve `nfs`, `iscsi`, `fc` (mevcut ağ depolama çözümleri).',
+            code: `spec:\n  containers:\n  - name: my-container\n    image: ...\n    volumeMounts:\n    - name: my-volume\n      mountPath: /data\n  volumes:\n  - name: my-volume\n    hostPath:\n      path: /var/local/data`
+        },
+        'controller': {
+            title: 'Controller (Denetleyici)',
+            icon: '🤖',
+            description: '**Controller**\'lar (Denetleyiciler), Kubernetes orkestrasyonunun önemli bir kavramıdır. Kubernetes ile birlikte çeşitli denetleyiciler gelir ve isteğe bağlı olarak özel denetleyiciler de oluşturulabilir. Bir denetleyici, belirli bir nesnenin durumu için `kube-apiserver`\'ı sorgulayarak, bildirilen durum geçerli durumla eşleşene kadar nesneyi değiştirir. Bu sürekli gözlem ve düzeltme döngüsü, Kubernetes\'in kendi kendini iyileştirme ve otomatik yönetim yeteneklerinin temelini oluşturur. Örneğin, bir `ReplicaSet` denetleyicisi, bir uygulamanın her zaman belirli sayıda Pod kopyasına sahip olmasını sağlar; eğer bir Pod başarısız olursa, denetleyici otomatik olarak yeni bir Pod başlatır.',
+            code: `(Genellikle doğrudan YAML ile tanımlanmaz, Deployment veya ReplicaSet gibi üst düzey kaynaklar tarafından yönetilir.)`
+        }
+    };
+    
+    const componentPills = document.querySelectorAll('.component-pill');
+    const infoTitle = document.getElementById('info-title');
+    const infoDescription = document.getElementById('info-description');
+    const infoRole = document.getElementById('info-role');
+
+    componentPills.forEach(pill => {
+        pill.addEventListener('click', () => {
+            const componentKey = pill.dataset.component;
+            const data = architectureData[componentKey];
+
+            componentPills.forEach(p => p.classList.remove('active'));
+            document.querySelectorAll(`[data-component=${componentKey}]`).forEach(activePill => {
+                 activePill.classList.add('active');
+            });
+
+            infoTitle.textContent = data.title;
+            infoDescription.textContent = data.description;
+            infoRole.innerHTML = `<span class="font-semibold bg-gray-100 px-2 py-1 rounded">${data.role}</span>`;
+        });
+    });
+
+    const conceptTabsContainer = document.getElementById('concept-tabs');
+    const conceptContentContainer = document.getElementById('concept-content');
+    
+    Object.keys(conceptsData).forEach((key, index) => {
+        const data = conceptsData[key];
+        const tab = document.createElement('button');
+        tab.className = 'concept-tab w-full md:w-auto text-left md:text-center p-3 mb-2 mr-2 md:mr-0 border-b-2 md:border-b-0 md:border-l-2 border-gray-200 font-medium text-gray-600 hover:bg-gray-100';
+        tab.textContent = data.title;
+        tab.dataset.concept = key;
+        if (index === 0) {
+            tab.classList.add('active');
+        }
+        conceptTabsContainer.appendChild(tab);
+    });
+
+    function renderConceptContent(key) {
+        const data = conceptsData[key];
+        conceptContentContainer.innerHTML = `
+            <div class="bg-gray-50 p-6 rounded-lg shadow-inner">
+                <h3 class="text-2xl font-bold mb-3 flex items-center"><span class="text-3xl mr-3">${data.icon}</span>${data.title}</h3>
+                <p class="text-gray-700 mb-6">${data.description}</p>
+                <div>
+                    <h4 class="font-semibold mb-2 text-gray-800">Örnek YAML Yapılandırması:</h4>
+                    <pre class="bg-gray-900 text-white p-4 rounded-md text-sm overflow-x-auto"><code>${data.code}</code></pre>
+                </div>
+            </div>
+        `;
+    }
+    
+    document.querySelectorAll('.concept-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.concept-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            renderConceptContent(tab.dataset.concept);
+        });
+    });
+    
+    renderConceptContent(Object.keys(conceptsData)[0]);
+
+    const ctx = document.getElementById('ecosystemChart').getContext('2d');
+    const ecosystemChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Docker (Runtime)', 'Helm (Paketleme)', 'Prometheus (İzleme)', 'Istio (Servis Ağı)', 'Diğer Araçlar'],
+            datasets: [{
+                label: 'Kubernetes Ekosistemi',
+                data: [20, 20, 20, 20, 20],
+                backgroundColor: [
+                    'rgba(59, 130, 246, 0.7)',
+                    'rgba(16, 185, 129, 0.7)',
+                    'rgba(249, 115, 22, 0.7)',
+                    'rgba(139, 92, 246, 0.7)',
+                    'rgba(100, 116, 139, 0.7)'
+                ],
+                borderColor: [
+                    'rgba(59, 130, 246, 1)',
+                    'rgba(16, 185, 129, 1)',
+                    'rgba(249, 115, 22, 1)',
+                    'rgba(139, 92, 246, 1)',
+                    'rgba(100, 116, 139, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.parsed;
+                            return `${label}: %${value}`;
+                        }
+                    }
+                }
+            },
+            cutout: '60%'
+        }
+    });
+
+    const navLinks = document.querySelectorAll('.nav-link');
+    const sections = document.querySelectorAll('section');
+
+    window.addEventListener('scroll', () => {
+        let current = '';
+        sections.forEach(section => {
+            const sectionTop = section.offsetTop;
+            if (pageYOffset >= sectionTop - 100) {
+                current = section.getAttribute('id');
+            }
+        });
+
+        navLinks.forEach(link => {
+            link.classList.remove('active');
+            if (link.getAttribute('href').includes(current)) {
+                link.classList.add('active');
+            }
+        });
+    });
+    
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            document.querySelector(this.getAttribute('href')).scrollIntoView({
+                behavior: 'smooth'
+            });
+        });
+    });
+
+    const accordionButtons = document.querySelectorAll('.accordion-button');
+    accordionButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const accordionContent = button.nextElementSibling;
+            const icon = button.querySelector('.accordion-icon');
+
+            if (accordionContent.classList.contains('open')) {
+                accordionContent.classList.remove('open');
+                icon.textContent = '+';
+            } else {
+                accordionContent.classList.add('open');
+                icon.textContent = '-';
+            }
+        });
+    });
+
+});
+</script>
+
+</body>
+</html>
