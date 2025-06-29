@@ -7,6 +7,7 @@ Detaylı Açıklamalar: Her konuyu derinlemesine inceleyerek, sadece "ne" olduğ
 * Görsel Destek: Karmaşık kavramları ve çalışma prensiplerini basitleştirmek için görseller ve diyagramlar kullanmak.
 * Pratik Örnekler: Konuları pekiştirmek için ilgili YAML yapılandırmaları ve kullanım senaryoları sunmak.
 * Erişim Kolaylığı: Tek sayfalık HTML belgeleri aracılığıyla konular arasında hızlı ve kolay geçiş imkanı sağlamak.
+---
 Bu projenin temel motivasyonu, Kubernetes öğrenimini daha erişilebilir, anlaşılır ve etkili hale getirmektir.
 İçerik Yapısı
 Proje, her biri belirli bir Kubernetes konusuna odaklanan ayrı HTML belgelerinden oluşmaktadır. Ana index.html sayfası, tüm bu belgelere kolayca erişim sağlayan bir navigasyon hub'ı görevi görür.
