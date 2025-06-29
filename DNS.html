@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes DNS Çözümleri: CoreDNS ve Node-Local-DNS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Tech Blue, Gray, Light Green, Light Purple (for DNS) -->
+    <!-- Application Structure Plan: This standalone HTML document focuses on Kubernetes DNS solutions. It starts with an introduction to DNS in Kubernetes, followed by dedicated sections for CoreDNS and Node-Local-DNS. Each section explains "what it is," "why it's used," and "how it works" with custom HTML/CSS diagrams for visual clarity. A comprehensive comparison table highlights their similarities and differences. The linear structure aims for didactic clarity, allowing users to understand these critical networking components in depth. -->
+    <!-- Visualization & Content Choices: 
+        - General DNS Flow Diagram: HTML/CSS diagram illustrating how Pods resolve DNS queries through CoreDNS. Goal: Basic understanding of DNS in K8s.
+        - CoreDNS Architecture Diagram: HTML/CSS diagram showing CoreDNS Pods and their interaction within the cluster. Goal: Illustrate CoreDNS deployment.
+        - Node-Local-DNS Architecture Diagram: HTML/CSS diagram showing Node-Local-DNS as a DaemonSet on each node, caching DNS queries. Goal: Illustrate caching mechanism.
+        - Comparison Table: Summarizes key aspects, advantages, and disadvantages of CoreDNS and Node-Local-DNS. Goal: Compare/Inform.
+        - All diagrams use plain HTML/CSS (Tailwind for layout, simple boxes and Unicode characters for icons/arrows).
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1f2937;
+        }
+        .section-header {
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .content-card {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 2rem;
+        }
+        .diagram-box {
+            background-color: #e0f2fe; /* Light blue for diagram backgrounds */
+            border: 1px solid #93c5fd;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: 100%;
+            max-width: 800px; /* Max width for diagrams */
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .diagram-node {
+            background-color: #fff;
+            border: 1px solid #3b82f6;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+        }
+        .diagram-arrow {
+            font-size: 1.5rem;
+            color: #2563eb;
+            margin: 0.2rem 0;
+        }
+        .pod-representation {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0.5rem;
+        }
+        .pod-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+        }
+        .pod-label {
+            font-size: 0.8rem;
+            background-color: #f0f9ff;
+            border: 1px solid #bfdbfe;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            white-space: nowrap;
+        }
+        .dns-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #8b5cf6; /* Purple for DNS */
+        }
+        .dns-resolver-box {
+            background-color: #f3e8ff; /* Light purple */
+            border: 1px solid #c084fc;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+            color: #6d28d9;
+        }
+        .caching-box {
+            background-color: #d1fae5;
+            border: 1px solid #34d399;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: 500;
+            color: #065f46;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #cbd5e1;
+            padding: 0.75rem;
+            text-align: left;
+        }
+        th {
+            background-color: #e2e8f0;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="scroll-smooth">
+
+    <header class="bg-blue-600 text-white py-6 text-center shadow-md">
+        <div class="container mx-auto px-6">
+            <h1 class="text-3xl md:text-4xl font-bold">Kubernetes DNS Çözümleri: CoreDNS ve Node-Local-DNS</h1>
+            <p class="text-lg mt-2">Kubernetes'teki DNS hizmetlerinin detayları, çalışma prensipleri ve farkları.</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section id="giris" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Giriş: Kubernetes'te DNS'in Önemi</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Kubernetes kümelerinde DNS (Domain Name System) hizmetleri, Pod'ların ve Servislerin birbirlerini adlarıyla bulabilmesi için kritik öneme sahiptir. Uygulamalarınızın doğru çalışabilmesi için, bir Pod'un başka bir Servis'e veya Pod'a IP adresini bilmeden sadece adını kullanarak erişebilmesi gerekir. Kubernetes, bu hizmet keşif (service discovery) mekanizmasını sağlamak için bir küme DNS sunucusu kullanır. Bu sunucu, Servis ve Pod adlarını küme IP'lerine çözümler.
+            </p>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Kubernetes, eski sürümlerinde `kube-dns` kullanırken, daha modern kümelerde varsayılan DNS sağlayıcısı olarak **CoreDNS**'i benimsemiştir. Bunun yanı sıra, büyük ölçekli ve performans odaklı kümelerde DNS sorgularının performansını optimize etmek için **node-local-dns** gibi çözümler kullanılır.
+            </p>
+            <div class="diagram-box">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">Kubernetes'te Temel DNS Akışı</h3>
+                <div class="flex items-center justify-center w-full my-4">
+                    <div class="pod-representation">
+                        <span class="pod-icon">📦</span>
+                        <div class="pod-label">Uygulama Pod'u</div>
+                    </div>
+                    <span class="diagram-arrow">⟶</span>
+                    <div class="dns-resolver-box">DNS Sorgusu</div>
+                    <span class="diagram-arrow">⟶</span>
+                    <div class="dns-resolver-box">Küme DNS Servisi</div>
+                    <span class="diagram-arrow">⟶</span>
+                    <div class="pod-representation">
+                        <span class="pod-icon">🌐</span>
+                        <div class="pod-label">Hizmet IP/Adı</div>
+                    </div>
+                </div>
+                <p class="text-sm text-gray-500 mt-4">Pod'lar, diğer servisleri veya Pod'ları adlarıyla bulmak için küme DNS servisini kullanır.</p>
+            </div>
+        </section>
+
+        <section id="coredns" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">1. CoreDNS</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **CoreDNS**, Kubernetes kümeleri için varsayılan ve önerilen DNS sunucusudur. Genişletilebilir, modüler ve yüksek performanslı bir DNS sunucusu olarak tasarlanmıştır. Kubernetes ile entegrasyonu sayesinde, küme içinde oluşturulan tüm Servis ve Pod'lar için otomatik olarak DNS kayıtları oluşturur ve bunları çözümleyebilir.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Neden ve Ne İşe Yarar?</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Servis Keşfi:** Pod'lar, başka bir Servis'e veya Pod'a IP adresi yerine DNS adıyla erişebilir (örneğin `my-service.my-namespace.svc.cluster.local`).</li>
+                    <li>**Genişletilebilirlik:** `Corefile` adı verilen bir yapılandırma dosyası ile farklı eklentiler (plugins) aracılığıyla davranışları özelleştirilebilir (örneğin dış DNS sunucularına yönlendirme, loglama, önbellekleme).</li>
+                    <li>**Yüksek Performans ve Güvenilirlik:** Modüler yapısı ve Go dilinde yazılmış olması sayesinde verimli çalışır. Genellikle kümede Deployment olarak çalışır ve birden fazla kopyası bulunur, bu da yüksek erişilebilirlik sağlar.</li>
+                    <li>**Kubernetes Standartı:** Yeni Kubernetes kurulumlarında varsayılan DNS çözümüdür.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Çalışma Şekli (Basitleştirilmiş):</h3>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    CoreDNS, Kubernetes kümesinde `kube-system` namespace'inde bir Deployment (veya StatefulSet) olarak çalışır ve bir ClusterIP Servisi tarafından açığa çıkarılır. Kümedeki her Pod, DNS çözümlemesi için bu CoreDNS Servisi'nin IP adresini kullanacak şekilde yapılandırılır. Bir Pod bir DNS sorgusu yaptığında, bu sorgu Pod'un kendi ağ yapılandırmasındaki DNS sunucusuna (CoreDNS Servisi'nin IP'si) gönderilir. CoreDNS, bu sorguyu çözümler ve cevabı Pod'a döndürür. Eğer sorgu küme içi bir Servis veya Pod için değilse, CoreDNS bunu dış DNS sunucularına iletebilir.
+                </p>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">CoreDNS Mimarisi</h4>
+                    <div class="flex items-center w-full justify-center">
+                        <div class="node-container border-blue-400">
+                            <div class="node-title">Kubernetes Düğümü</div>
+                            <span class="pod-icon">📦</span>
+                            <div class="pod-label">Uygulama Pod'u</div>
+                            <span class="diagram-arrow">DNS Sorgusu</span>
+                        </div>
+                        <div class="flex flex-col items-center mx-4 md:mx-8">
+                            <span class="dns-icon">📡</span>
+                            <p class="text-sm text-gray-600 font-semibold">Küme Ağı</p>
+                            <span class="diagram-arrow">⟶</span>
+                        </div>
+                        <div class="node-container border-purple-400">
+                            <div class="node-title">CoreDNS Pod'ları</div>
+                            <span class="dns-icon">💜</span>
+                            <div class="pod-label">CoreDNS Servisi</div>
+                            <span class="diagram-arrow">⟶</span>
+                            <div class="dns-resolver-box">etcd (Kubernetes API)</div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">Pod'lar, CoreDNS Servisi aracılığıyla DNS sorgularını çözümler.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="nodelocaldns" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">2. Node-Local-DNS</h2>
+            <div class="content-card">
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    **Node-Local-DNS**, her Kubernetes düğümünde çalışan bir DNS önbellekleme aracıdır. Temel amacı, DNS sorgularını doğrudan düğüm üzerinde önbelleğe alarak DNS çözümleme performansını artırmak ve CoreDNS (veya diğer küme DNS sunucularının) üzerindeki yükü azaltmaktır. Bu özellikle büyük kümelerde veya yoğun DNS trafiği olan uygulamalarda faydalıdır.
+                </p>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Neden ve Ne İşe Yarar?</h3>
+                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                    <li>**Gecikmeyi Azaltma:** DNS sorguları artık küme DNS Servisi'ne (CoreDNS) gidip gelmek yerine, doğrudan düğüm üzerindeki yerel önbellek tarafından çözümlenebilir. Bu, DNS sorgu gecikmesini önemli ölçüde azaltır.</li>
+                    <li>**CoreDNS Yükünü Azaltma:** Her Pod'dan gelen tüm DNS sorgularını CoreDNS'e göndermek yerine, node-local-dns önce kendi önbelleğine bakar. Bu, CoreDNS Pod'larının iş yükünü hafifletir ve onların daha kararlı çalışmasını sağlar.</li>
+                    <li>**Ağ Tıkanıklığını Azaltma:** Küme DNS Servisi'ne giden gereksiz ağ trafiğini ortadan kaldırır.</li>
+                    <li>**Daha İstikrarlı DNS Çözümleme:** Küme DNS Servisi'nde kısa süreli bir kesinti yaşansa bile, yerel önbellek sayesinde Pod'lar DNS çözümlemeye devam edebilir.</li>
+                </ul>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Çalışma Şekli (Basitleştirilmiş):</h3>
+                <p class="text-gray-700 mb-4 leading-relaxed">
+                    node-local-dns, bir DaemonSet olarak her düğümde çalışır. Bu, her düğümde bir node-local-dns Pod'unun (veya sürecinin) bulunacağı anlamına gelir. Pod'ların DNS yapılandırması, doğrudan düğüm üzerindeki node-local-dns önbelleğine işaret edecek şekilde değiştirilir. Bir Pod bir DNS sorgusu yaptığında, bu sorgu önce düğümdeki yerel önbelleğe gelir. Eğer önbellekte bir karşılık varsa, cevap anında döndürülür. Yoksa, node-local-dns sorguyu CoreDNS Servisi'ne iletir, cevabı önbelleğe alır ve Pod'a döndürür.
+                </p>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">Node-Local-DNS Mimarisi</h4>
+                    <div class="flex flex-col items-center w-full justify-center">
+                        <div class="node-container border-blue-400 w-full md:w-auto">
+                            <div class="node-title">Kubernetes Düğümü</div>
+                            <span class="pod-icon">📦</span>
+                            <div class="pod-label">Uygulama Pod'u</div>
+                            <span class="diagram-arrow">Yerel DNS Sorgusu</span>
+                            <div class="caching-box">Node-Local-DNS (Önbellek)</div>
+                            <div class="flex items-center mt-2">
+                                <span class="diagram-arrow">Önbellek Miss</span>
+                                <div class="dns-resolver-box text-xs">CoreDNS Servisi</div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">Node-Local-DNS, her düğümde çalışarak DNS sorgularını önbellekler ve gecikmeyi azaltır.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="karsilastirma" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">CoreDNS ve Node-Local-DNS Karşılaştırması</h2>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                CoreDNS, Kubernetes'in temel küme içi DNS çözümlemesini sağlarken, Node-Local-DNS bu çözümlemeyi optimize eden ve performansını artıran ek bir katmandır. İşte aralarındaki temel benzerlikler ve farklar:
+            </p>
+
+            <h3 class="text-2xl font-bold text-gray-800 mb-4">Benzerlikler:</h3>
+            <ul class="list-disc list-inside text-gray-700 mb-6 pl-4 leading-relaxed">
+                <li>Her ikisi de Kubernetes kümesinde DNS çözümlemesi yapar.</li>
+                <li>Her ikisi de Kubernetes Servis ve Pod adlarını çözümleyebilir.</li>
+                <li>Her ikisi de performans ve ölçeklenebilirlik hedeflerine hizmet eder.</li>
+            </ul>
+
+            <h3 class="text-2xl font-bold text-gray-800 mb-4">Farklar:</h3>
+            <div class="overflow-x-auto">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Özellik</th>
+                            <th>CoreDNS</th>
+                            <th>Node-Local-DNS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>**Ana Amaç**</td>
+                            <td>Küme içi DNS hizmeti sunmak ve DNS kayıtlarını çözümlemek.</td>
+                            <td>DNS sorgularını önbelleğe almak ve DNS gecikmesini azaltmak.</td>
+                        </tr>
+                        <tr>
+                            <td>**Dağıtım Tipi**</td>
+                            <td>Genellikle Deployment (veya StatefulSet) olarak çalışır.</td>
+                            <td>DaemonSet olarak her düğümde çalışır.</td>
+                        </tr>
+                        <tr>
+                            <td>**Konum**</td>
+                            <td>Küme genelinde merkezi bir hizmet sağlar.</td>
+                            <td>Her düğümde yerel olarak çalışır.</td>
+                        </tr>
+                        <tr>
+                            <td>**DNS Sorgu Akışı**</td>
+                            <td>Tüm Pod'lardan gelen sorguları doğrudan işler.</td>
+                            <td>Sorguları önce yerel önbellekte arar, bulunamazsa CoreDNS'e iletir.</td>
+                        </tr>
+                        <tr>
+                            <td>**Bağımlılık**</td>
+                            <td>Genellikle bağımsız bir DNS sunucusudur.</td>
+                            <td>Çalışmak için CoreDNS (veya başka bir küme DNS sunucusu) gibi bir yukarı akış DNS sunucusuna ihtiyaç duyar.</td>
+                        </tr>
+                        <tr>
+                            <td>**Performans Etkisi**</td>
+                            <td>Kümenin genel DNS yükünü karşılar. Çok yoğun trafik altında darboğaz olabilir.</td>
+                            <td>DNS sorgu gecikmesini düşürür ve CoreDNS üzerindeki yükü azaltır, bu da genel performansı artırır.</td>
+                        </tr>
+                        <tr>
+                            <td>**Maliyet/Kaynak Kullanımı**</td>
+                            <td>Daha az Pod ile daha az kaynak tüketir, ancak ağ trafiği daha merkezi olur.</td>
+                            <td>Her düğümde bir Pod çalıştığı için daha fazla kaynak tüketebilir, ancak ağ trafiği dağıtılır.</td>
+                        </tr>
+                        <tr>
+                            <td>**Ne Zaman Kullanılır?**</td>
+                            <td>Her Kubernetes kümesinin zorunlu DNS çözümü.</td>
+                            <td>Büyük kümelerde, yoğun DNS trafiği olan uygulamalarda ve DNS gecikmesini düşürmek istendiğinde ek katman olarak kullanılır.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="sonuc" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Sonuç</h2>
+            <p class="text-lg text-gray-700 leading-relaxed">
+                Kubernetes'teki DNS hizmetleri, Pod'ların ve Servislerin birbirleriyle sorunsuz iletişim kurabilmesi için vazgeçilmezdir. **CoreDNS**, küme içi hizmet keşfi için temel DNS sunucusunu sağlarken, **node-local-dns** gibi bir önbellekleme çözümü, DNS sorgularının performansını ve güvenilirliğini artırmak için ek bir optimizasyon katmanı sunar. Büyük ölçekli ve performans açısından kritik kümelerde, CoreDNS ile birlikte node-local-dns kullanılması, ağ gecikmelerini azaltmaya ve DNS çözümleme sürecini daha verimli hale getirmeye yardımcı olur. Bu iki bileşenin doğru yapılandırılması, Kubernetes uygulamalarınızın istikrarlı ve hızlı çalışması için hayati öneme sahiptir.
+            </p>
+        </section>
+    </main>
+    
+    <footer class="bg-gray-800 text-white py-8">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2025 Kubernetes DNS Çözümleri Anlatım. Tüm hakları saklıdır.</p>
+            <p class="text-sm text-gray-400 mt-2">Bu belge, Kubernetes DNS çözümlerini detaylı açıklamak amacıyla oluşturulmuştur.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
