@@ -2,11 +2,11 @@
 Bu proje, Kubernetes ekosistemindeki temel kavramları, bileşenleri, yönetim araçlarını ve ileri düzey konuları kapsamlı ve detaylı bir şekilde açıklayan HTML belgelerinden oluşan bir koleksiyondur. Amacımız, Kubernetes öğrenme yolculuğunu kolaylaştırmak ve hem yeni başlayanlar hem de deneyimli kullanıcılar için güvenilir bir başvuru kaynağı sunmaktır.
 ## Proje Amacı ve Hazırlanma Nedeni
 Modern yazılım geliştirme ve operasyon süreçlerinde, konteynerizasyon ve Kubernetes gibi platformlar vazgeçilmez hale gelmiştir. Ancak Kubernetes'in geniş ve karmaşık yapısı, öğrenme sürecini zorlaştırabilmektedir. Bu dokümantasyon projesi, aşağıdaki ihtiyaçları karşılamak üzere hazırlanmıştır:
-Kapsamlı Bilgi: Kubernetes'in temelinden ileri düzey konularına kadar geniş bir yelpazede bilgi sunmak.
+* Kapsamlı Bilgi: Kubernetes'in temelinden ileri düzey konularına kadar geniş bir yelpazede bilgi sunmak.
 Detaylı Açıklamalar: Her konuyu derinlemesine inceleyerek, sadece "ne" olduğunu değil, aynı zamanda "neden" ve "nasıl" çalıştığını da anlatmak.
-Görsel Destek: Karmaşık kavramları ve çalışma prensiplerini basitleştirmek için görseller ve diyagramlar kullanmak.
-Pratik Örnekler: Konuları pekiştirmek için ilgili YAML yapılandırmaları ve kullanım senaryoları sunmak.
-Erişim Kolaylığı: Tek sayfalık HTML belgeleri aracılığıyla konular arasında hızlı ve kolay geçiş imkanı sağlamak.
+* Görsel Destek: Karmaşık kavramları ve çalışma prensiplerini basitleştirmek için görseller ve diyagramlar kullanmak.
+* Pratik Örnekler: Konuları pekiştirmek için ilgili YAML yapılandırmaları ve kullanım senaryoları sunmak.
+* Erişim Kolaylığı: Tek sayfalık HTML belgeleri aracılığıyla konular arasında hızlı ve kolay geçiş imkanı sağlamak.
 Bu projenin temel motivasyonu, Kubernetes öğrenimini daha erişilebilir, anlaşılır ve etkili hale getirmektir.
 İçerik Yapısı
 Proje, her biri belirli bir Kubernetes konusuna odaklanan ayrı HTML belgelerinden oluşmaktadır. Ana index.html sayfası, tüm bu belgelere kolayca erişim sağlayan bir navigasyon hub'ı görevi görür.
