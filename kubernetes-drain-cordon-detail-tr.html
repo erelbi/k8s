@@ -3,19 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kubernetes CI/CD ve GitOps Araçları: GitLab Agent, GitLab Runner ve Flux CD</title>
+    <title>Kubernetes Drain ve Cordon: Düğüm Yönetimi Detayları</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Chosen Palette: Tech Blue, Gray, Green (Success), Orange (Flow) -->
-    <!-- Application Structure Plan: This standalone HTML document details Kubernetes CI/CD and GitOps tools. It begins with an introduction to CI/CD and GitOps, then dedicates sections to GitLab Runner, GitLab Agent, and Flux CD. Each tool's section explains its purpose, how it works, and common use cases, accompanied by conceptual diagrams and YAML code examples. A final comparison section highlights key differences and similarities using a table, guiding users on tool selection. The linear structure is chosen for clarity and comprehensive learning. -->
+    <!-- Chosen Palette: Tech Blue, Gray, Green (Active/Ready), Red (Blocked/Draining) -->
+    <!-- Application Structure Plan: This standalone HTML document is designed to explain Kubernetes node management commands: Cordon and Drain. It starts with an introduction to node maintenance, differentiating voluntary and involuntary disruptions. It then dedicates sections to Cordon and Drain respectively. Each section explains its purpose, how it works, and use cases, supported by conceptual HTML/CSS diagrams and `kubectl` command examples. A clear comparison section highlights their differences. The linear structure ensures a clear and detailed understanding of these critical operational commands. -->
     <!-- Visualization & Content Choices: 
-        - General CI/CD Flow Diagram (HTML/CSS): Illustrates push-based deployment from code to cluster.
-        - GitLab Runner Diagram (HTML/CSS): Shows GitLab instance, Runner, and Kubernetes cluster interaction.
-        - GitLab Agent Diagram (HTML/CSS): Illustrates the pull-based GitOps flow with the Agent in the cluster.
-        - Flux CD Diagram (HTML/CSS): Depicts Flux components pulling from Git and applying to the cluster.
-        - Comparison Table: Summarizes features, approach, and suitability for each tool.
+        - Node Status Diagram (Cordon): HTML/CSS diagram showing a node transitioning from 'Ready' to 'SchedulingDisabled' using colored boxes and text. Goal: Visually represent node state change.
+        - Node Drain Flow Diagram: HTML/CSS diagram illustrating Pod eviction from a node during drain, showing Pods moving to another node. Goal: Explain the impact of draining and Pod rescheduling.
+        - Comparison Table: Summarizes key aspects, actions, and use cases for Cordon vs. Drain. Goal: Compare/Inform.
         - All diagrams use plain HTML/CSS (Tailwind for layout, simple boxes and Unicode characters for icons/arrows).
     -->
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
@@ -76,38 +74,48 @@
             color: #2563eb;
             margin: 0.2rem 0;
         }
-        .component-label {
+        .node-representation {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 0.5rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .node-status-ready {
+            background-color: #d1fae5; /* Light green */
+            border: 2px solid #34d399; /* Green */
+            color: #065f46;
+        }
+        .node-status-cordoned {
+            background-color: #fffbeb; /* Light orange */
+            border: 2px solid #f59e0b; /* Orange */
+            color: #9a3412;
+        }
+        .node-status-draining {
+            background-color: #fee2e2; /* Light red */
+            border: 2px solid #ef4444; /* Red */
+            color: #991b1b;
+        }
+        .pod-icon {
+            font-size: 2.5rem;
+            line-height: 1;
+            margin-bottom: 0.25rem;
+            color: #6366f1; /* Indigo for pods */
+        }
+        .pod-label {
             font-size: 0.8rem;
-            background-color: #f0f9ff;
-            border: 1px solid #bfdbfe;
+            background-color: #e0e7ff;
+            border: 1px solid #c7d2fe;
             padding: 0.2rem 0.5rem;
             border-radius: 0.25rem;
             white-space: nowrap;
         }
-        .flow-arrow {
-            font-size: 1.2rem;
-            color: #f97316; /* Orange for flow */
-            margin: 0 0.5rem;
-        }
-        .git-icon {
+        .flow-arrow-long {
             font-size: 2rem;
-            color: #ef4444; /* Red for Git */
-        }
-        .cluster-icon {
-            font-size: 2rem;
-            color: #22c55e; /* Green for Cluster */
-        }
-        .runner-icon {
-            font-size: 2rem;
-            color: #f97316; /* Orange for Runner */
-        }
-        .agent-icon {
-            font-size: 2rem;
-            color: #8b5cf6; /* Purple for Agent */
-        }
-        .flux-icon {
-            font-size: 2rem;
-            color: #06b6d4; /* Cyan for Flux */
+            color: #2563eb;
+            margin: 0 1rem;
         }
         table {
             width: 100%;
@@ -128,292 +136,202 @@
 
     <header class="bg-blue-600 text-white py-6 text-center shadow-md">
         <div class="container mx-auto px-6">
-            <h1 class="text-3xl md:text-4xl font-bold">Kubernetes CI/CD ve GitOps Araçları</h1>
-            <p class="text-lg mt-2">GitLab Runner, GitLab Agent ve Flux CD: Kubernetes dağıtımlarınızı otomatikleştirme rehberi.</p>
+            <h1 class="text-3xl md:text-4xl font-bold">Kubernetes Drain ve Cordon: Düğüm Yönetimi Detayları</h1>
+            <p class="text-lg mt-2">Kubernetes kümelerinde düğüm bakımı ve iş yükü yönetimi için temel komutlar.</p>
         </div>
     </header>
 
     <main class="container mx-auto px-6 py-12">
         <section id="giris" class="mb-12">
-            <h2 class="text-3xl font-bold text-gray-800 section-header">Giriş: CI/CD ve GitOps Yaklaşımları</h2>
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Giriş: Düğüm Bakımı ve İş Yükü Yönetimi</h2>
             <p class="text-lg text-gray-700 leading-relaxed mb-6">
-                Modern yazılım geliştirme süreçlerinde, uygulamaların hızlı, güvenilir ve sürekli bir şekilde dağıtılması büyük önem taşır. Bu ihtiyacı karşılamak için **Sürekli Entegrasyon ve Sürekli Dağıtım (CI/CD)** ve **GitOps** gibi metodolojiler kullanılır.
+                Kubernetes kümeleri, uygulamaların yüksek erişilebilirlik ve ölçeklenebilirlik ile çalışmasını sağlayan dinamik ortamlardır. Bu dinamizm, altyapı üzerinde düzenli bakım işlemleri yapılmasını veya bir düğümün kümeden geçici olarak çıkarılmasını gerektirebilir. Bir düğüm üzerinde bakım yapmak, yazılım güncellemek veya donanım değiştirmek gibi durumlar söz konusu olduğunda, bu düğümdeki Pod'ların güvenli bir şekilde başka düğümlere taşınması veya yeni Pod'ların bu düğüme atanmasının engellenmesi önemlidir.
             </p>
-            <ul class="list-disc list-inside text-gray-700 mb-6 pl-4 leading-relaxed">
-                <li>**CI/CD (Sürekli Entegrasyon / Sürekli Dağıtım):** Geliştiricilerin kod değişikliklerini sık sık entegre etmelerini, otomatik testlerden geçirmelerini ve üretim ortamlarına otomatik olarak dağıtmalarını sağlayan bir otomasyon döngüsüdür. Genellikle bir "push" modelini izler; yani CI/CD aracı, kaynak kod deposundaki değişiklikleri algılayıp yeni derlemeyi bir hedef ortama (örneğin Kubernetes kümesi) "iter".</li>
-                <li>**GitOps:** Altyapıyı ve uygulamaları "kod olarak" yönetme prensibine dayanan bir operasyonel çerçevedir. Tüm sistemin istenen durumu Git deposunda bildirimsel olarak tanımlanır. Bir operatör (veya aracı), kümenin mevcut durumunu sürekli olarak Git deposundaki istenen durumla karşılaştırır ve herhangi bir fark algılandığında kümeyi otomatik olarak Git'teki duruma getirir. Bu, bir "pull" modelidir; yani küme içindeki aracı, Git deposundan değişiklikleri "çeker".</li>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Kubernetes, bu tür senaryoları yönetmek için `kubectl cordon` ve `kubectl drain` komutlarını sunar. Bu komutlar, düğümlerin durumunu kontrollü bir şekilde değiştirerek iş yükü kesintilerini en aza indirmeye yardımcı olur.
+            </p>
+            <p class="text-lg text-gray-700 leading-relaxed mb-6">
+                Kesintileri yönetirken iki ana türü göz önünde bulundurmak önemlidir:
+            </p>
+            <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                <li>**İstemsiz Kesintiler (Involuntary Disruptions):** Düğüm çökmesi, kernel panik, düğümün ağ bağlantısının kesilmesi veya fiziksel donanım arızası gibi kontrol dışı olaylardır. Kubernetes'in kendi kendini iyileştirme mekanizmaları (örneğin ReplicaSet'ler) bu durumlarda Pod'ları başka sağlıklı düğümlere yeniden planlayarak uygulamaları kurtarmaya çalışır.</li>
+                <li>**Gönüllü Kesintiler (Voluntary Disruptions):** Yöneticinin veya otomatik araçların kasıtlı olarak bir Pod'u bir düğümden tahliye etmesiyle oluşan kesintilerdir. Örnekler:
+                    <ul>
+                        <li>`kubectl drain` komutu ile düğüm bakımı (işletim sistemi yükseltmesi, donanım değişimi).</li>
+                        <li>Küme yükseltmesi veya düğüm havuzu ölçeklendirmesi.</li>
+                        <li>Hata veren Pod'ları veya düğümleri kümeden çıkarma.</li>
+                    </ul>
+                </li>
             </ul>
-            <p class="text-lg text-gray-700 leading-relaxed mb-6">
-                Bu belgede, bu yaklaşımları Kubernetes ortamında uygulamanıza yardımcı olacak üç önemli aracı inceleyeceğiz: GitLab Runner (geleneksel CI/CD için), GitLab Agent (GitLab'ın GitOps çözümü) ve Flux CD (genel bir GitOps araç seti).
-            </p>
-            <div class="diagram-box">
-                <h3 class="text-xl font-bold text-gray-800 mb-4">CI/CD ve GitOps Temel Farkları</h3>
-                <div class="flex flex-col items-center mb-6">
-                    <p class="text-lg font-semibold mb-2">CI/CD (Push Tabanlı)</p>
-                    <div class="flex items-center">
-                        <span class="git-icon">🐙</span>
-                        <div class="component-label mx-2">Git Deposu (Kod)</div>
-                        <span class="flow-arrow">⟶</span>
-                        <span class="runner-icon">🏃‍♂️</span>
-                        <div class="component-label mx-2">CI/CD İşlem Hattı (Runner)</div>
-                        <span class="flow-arrow">⟶</span>
-                        <span class="cluster-icon">☸️</span>
-                        <div class="component-label mx-2">Kubernetes Kümesi</div>
-                    </div>
-                    <p class="text-sm text-gray-500 mt-2">Değişiklikler CI/CD aracı tarafından kümeye itilir.</p>
-                </div>
-                <div class="flex flex-col items-center">
-                    <p class="text-lg font-semibold mb-2">GitOps (Pull Tabanlı)</p>
-                    <div class="flex items-center">
-                        <span class="git-icon">🐙</span>
-                        <div class="component-label mx-2">Git Deposu (İstenen Durum)</div>
-                        <span class="flow-arrow">⟵</span>
-                        <span class="agent-icon">🤖</span>
-                        <div class="component-label mx-2">Küme İçi Aracı (Agent)</div>
-                        <span class="flow-arrow">🔄</span>
-                        <span class="cluster-icon">☸️</span>
-                        <div class="component-label mx-2">Kubernetes Kümesi</div>
-                    </div>
-                    <p class="text-sm text-gray-500 mt-2">Küme içindeki aracı, Git deposundan değişiklikleri çeker.</p>
-                </div>
-            </div>
         </section>
 
-        <section id="gitlab-runner" class="mb-12">
-            <h2 class="text-3xl font-bold text-gray-800 section-header">1. GitLab Runner</h2>
+        <section id="cordon" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">1. `kubectl cordon`: Düğümü Yeni İş Yüklerinden Engelleme</h2>
             <div class="content-card">
                 <p class="text-gray-700 mb-4 leading-relaxed">
-                    **GitLab Runner**, GitLab CI/CD işlem hatlarını (pipelines) çalıştıran açık kaynaklı bir uygulama veya sunucudur. GitLab CI/CD, yazılım projelerinizi otomatikleştirmek için kullanılan bir sürekli entegrasyon hizmetidir. GitLab Runner, GitLab örneğinizle iletişim kurar, işlem hattı işlerini alır ve bunları kendi ortamında yürütür. Bu ortam, Docker konteynerleri, sanal makineler veya fiziksel sunucular olabilir.
+                    `kubectl cordon` komutu, bir Kubernetes düğümünü **"planlanamaz" (unschedulable)** olarak işaretler. Bu, `kube-scheduler`'ın bu düğüme yeni Pod'ları atamasını engeller. Ancak, düğümde halihazırda çalışan Pod'lar etkilenmez ve çalışmaya devam ederler. Cordon, düğümün mevcut iş yükünü bozmadan, yeni iş yüklerinin o düğüme gelmesini durdurmak istediğinizde kullanılır.
                 </p>
                 <h3 class="text-xl font-bold text-gray-800 mb-3">Neden ve Ne İşe Yarar?</h3>
                 <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
-                    <li>**İşlem Hattı Yürütme:** GitLab CI/CD işlem hatlarında tanımlanan tüm adımları (kod derleme, test etme, Docker imajı oluşturma, dağıtım komutlarını çalıştırma) yürütür.</li>
-                    <li>**Ortam Esnekliği:** Linux, Windows, macOS gibi farklı işletim sistemlerinde ve Docker, Kubernetes, SSH gibi çeşitli yürütme ortamlarında çalışabilir. Bu, farklı proje gereksinimlerine uyum sağlamasını sağlar.</li>
-                    <li>**Ölçeklenebilirlik:** İş yükünü dağıtmak için birden fazla Runner kaydedilebilir. Otomatik ölçeklenen (autoscale) Runner'lar, talebe göre dinamik olarak başlatılıp sonlandırılabilir.</li>
-                    <li>**Geleneksel CI/CD:** GitLab Runner, push tabanlı CI/CD yaklaşımlarının temel bileşenidir. Kod değişikliği Git'e itildiğinde, Runner tetiklenir ve tanımlanan işleri çalıştırır.</li>
+                    <li>**Bakım Öncesi Hazırlık:** Bir düğüm üzerinde uzun süreli bakım çalışması (örneğin işletim sistemi yükseltmesi, donanım değişimi) yapmadan önce yeni Pod'ların gelmesini durdurmak için kullanılır. Bu, düğümü "boşaltmaya" başlamadan önceki ilk adımdır.</li>
+                    <li>**Sorun Giderme:** Bir düğümde anormallikler fark ettiğinizde, ancak mevcut Pod'ları hemen etkilemek istemediğinizde, yeni Pod'ların o düğüme atanmasını önlemek için kullanılabilir.</li>
+                    <li>**Uygulama Boşaltma İçin İlk Adım:** Düğümdeki Pod'ların kendiliğinden başka düğümlere taşınmasını beklerken (örneğin Pod Disruption Budget ile uyumlu bir şekilde) ilk adım olarak kullanılabilir.</li>
                 </ul>
-                <h3 class="text-xl font-bold text-gray-800 mb-3">Çalışma Şekli (Basitleştirilmiş):</h3>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Çalışma Şekli:</h3>
                 <p class="text-gray-700 mb-4 leading-relaxed">
-                    Bir GitLab Runner, GitLab sunucusuna kayıt olur ve sürekli olarak yeni işleri bekler. Bir geliştirici koda bir değişiklik yaptığında ve bunu Git deposuna ittiğinde, GitLab CI/CD bu değişikliği algılar ve `.gitlab-ci.yml` dosyasında tanımlanan işlem hattını başlatır. İşlem hattındaki bir iş, kayıtlı bir Runner'a atanır. Runner, işin gerektirdiği ortamı (örneğin bir Docker konteyneri) başlatır, gerekli komutları çalıştırır ve sonuçları (loglar, başarı/başarısızlık durumu) GitLab sunucusuna geri gönderir.
+                    `kubectl cordon <düğüm-adı>` komutu, düğümün durumunu `Ready` (Hazır) durumundan `Ready,SchedulingDisabled` (Hazır, Planlama Devre Dışı) durumuna değiştirir. Bu durum, Scheduler'a bu düğüme yeni Pod atamamasını söyler, ancak mevcut Pod'lar çalışmaya devam eder. Düğüm bakımı tamamlandığında veya düğüm tekrar kullanıma hazır olduğunda, `kubectl uncordon <düğüm-adı>` komutuyla düğüm tekrar `Ready` durumuna getirilir ve yeni Pod'lar için planlanabilir hale gelir.
                 </p>
-                <div class="diagram-box">
-                    <h4 class="text-lg font-bold text-gray-800 mb-4">GitLab Runner Akışı</h4>
-                    <div class="flex items-center justify-center w-full">
-                        <span class="git-icon">🐙</span>
-                        <div class="component-label mx-2">GitLab Sunucusu</div>
-                        <span class="flow-arrow">⟶</span>
-                        <span class="runner-icon">🏃‍♂️</span>
-                        <div class="component-label mx-2">GitLab Runner</div>
-                        <span class="flow-arrow">⟶</span>
-                        <span class="cluster-icon">☸️</span>
-                        <div class="component-label mx-2">Kubernetes Kümesi (Dağıtım)</div>
-                    </div>
-                    <p class="text-sm text-gray-500 mt-4">GitLab Runner, GitLab'dan işleri çeker ve kümeye dağıtır.</p>
-                </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek `.gitlab-ci.yml` (Kubernetes'e Dağıtım):</h3>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek Kullanım:</h3>
                 <pre><code>
-# .gitlab-ci.yml
-stages:
-  - build
-  - deploy
+# Düğümü planlanamaz olarak işaretle
+kubectl cordon my-worker-node-1
 
-build_image:
-  stage: build
-  image: docker:latest
-  services:
-    - docker:dind
-  script:
-    - docker build -t registry.gitlab.com/your-group/your-project/my-app:latest .
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker push registry.gitlab.com/your-group/your-project/my-app:latest
-  tags:
-    - docker-runner # Belirli bir Docker Runner'da çalıştır
+# Düğümün durumunu kontrol et
+kubectl get nodes
 
-deploy_to_kubernetes:
-  stage: deploy
-  image: bitnami/kubectl:latest # kubectl içeren bir imaj
-  script:
-    - kubectl config get-contexts
-    - kubectl config use-context your-k8s-cluster # Kubernetes bağlamını seç
-    - kubectl apply -f kubernetes/deployment.yaml # Kubernetes manifestini dağıt
-  only:
-    - main # Sadece 'main' branch'ine yapıldığında çalıştır
-  tags:
-    - k8s-deploy-runner # Kubernetes'e erişimi olan bir Runner'da çalıştır
+# Örnek Çıktı (STATUS sütununa dikkat):
+# NAME             STATUS                     ROLES    AGE   VERSION
+# my-worker-node-1 Ready,SchedulingDisabled   <none>   2d    v1.28.3
+# my-worker-node-2 Ready                      <none>   2d    v1.28.3
+
+# Bakım sonrası düğümü tekrar aktif hale getir
+kubectl uncordon my-worker-node-1
                 </code></pre>
-            </div>
-        </section>
-
-        <section id="gitlab-agent" class="mb-12">
-            <h2 class="text-3xl font-bold text-gray-800 section-header">2. GitLab Agent (for Kubernetes)</h2>
-            <div class="content-card">
-                <p class="text-gray-700 mb-4 leading-relaxed">
-                    **GitLab Agent (for Kubernetes)**, GitLab'ın Kubernetes için GitOps ve daha güvenli CI/CD dağıtımları sağlamak amacıyla tasarladığı, küme içinde çalışan bir bileşendir. Geleneksel GitLab Runner modelinin aksine, GitLab Agent pull tabanlı (çekme tabanlı) bir yaklaşımla çalışır.
-                </p>
-                <h3 class="text-xl font-bold text-gray-800 mb-3">Neden ve Ne İşe Yarar?</h3>
-                <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
-                    <li>**GitOps Yaklaşımı:** Kümenizin istenen durumunu Git deposunda tanımlarsınız. Agent, bu depoyu sürekli izler ve kümenin mevcut durumunu Git'tekiyle senkronize eder. Bu, altyapıyı kod olarak yönetmenizi ve değişikliklerin izlenebilirliğini artırmanızı sağlar.</li>
-                    <li>**Güvenli Küme Bağlantısı:** GitLab CI/CD işlem hatlarından Kubernetes API'ye doğrudan erişim yerine, Agent küme içinde güvenli bir tünel (gRPC tabanlı) oluşturur. Bu, güvenlik açısından daha iyidir çünkü GitLab Runner'ların küme dışında hassas kimlik bilgilerine sahip olmasını gerektirmez.</li>
-                    <li>**Çoklu Küme Yönetimi:** Bir GitLab örneğinden birden fazla Kubernetes kümesini yönetmek için her kümeye bir Agent dağıtabilirsiniz.</li>
-                    <li>**Gelişmiş CI/CD Entegrasyonu:** GitLab CI/CD işlem hatları, Agent aracılığıyla kümeye güvenli bir şekilde dağıtım yapabilir, bu da Push ve Pull modellerini birleştirmenize olanak tanır (CI aşaması push, CD aşaması pull-via-agent).</li>
-                </ul>
-                <h3 class="text-xl font-bold text-gray-800 mb-3">Çalışma Şekli (Basitleştirilmiş):</h3>
-                <p class="text-gray-700 mb-4 leading-relaxed">
-                    GitLab Agent, hedef Kubernetes kümesine bir Pod olarak (genellikle bir Deployment veya DaemonSet) dağıtılır. Bu Agent, GitLab sunucusundaki bir "Agent Sunucusu" ile güvenli, çift yönlü bir gRPC tüneli kurar. GitOps için Agent, kümenin istenen durumunu tanımlayan Kubernetes manifestlerini içeren bir Git deposunu izler. Depoda bir değişiklik algılandığında, Agent bu değişiklikleri otomatik olarak kümeye uygular. CI/CD entegrasyonu için ise, GitLab CI/CD işlem hatları, bu tünel üzerinden güvenli bir şekilde `kubectl` komutlarını çalıştırabilir veya Kubernetes manifestlerini Agent aracılığıyla kümeye uygulayabilir.
-                </p>
                 <div class="diagram-box">
-                    <h4 class="text-lg font-bold text-gray-800 mb-4">GitLab Agent Akışı</h4>
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">`kubectl cordon` Etkisi</h4>
                     <div class="flex items-center justify-center w-full">
-                        <span class="git-icon">🐙</span>
-                        <div class="component-label mx-2">Git Deposu (İstenen Durum)</div>
-                        <span class="flow-arrow">⟵</span>
-                        <div class="flex flex-col items-center mx-2">
-                            <span class="agent-icon">🤖</span>
-                            <div class="component-label mt-1">GitLab Agent</div>
+                        <div class="node-representation node-status-ready">
+                            <h5 class="font-semibold text-gray-800">Düğüm A</h5>
+                            <p class="text-xs text-gray-600 mb-2">(Ready)</p>
+                            <span class="pod-icon">📦</span><div class="pod-label">Pod 1</div>
+                            <span class="pod-icon">📦</span><div class="pod-label">Pod 2</div>
                         </div>
-                        <span class="flow-arrow">🔄</span>
-                        <span class="cluster-icon">☸️</span>
-                        <div class="component-label mx-2">Kubernetes Kümesi</div>
+                        <span class="flow-arrow-long">⟶ `cordon` ⟶</span>
+                        <div class="node-representation node-status-cordoned">
+                            <h5 class="font-semibold text-gray-800">Düğüm A</h5>
+                            <p class="text-xs text-gray-600 mb-2">(SchedulingDisabled)</p>
+                            <span class="pod-icon">📦</span><div class="pod-label">Pod 1</div>
+                            <span class="pod-icon">📦</span><div class="pod-label">Pod 2</div>
+                        </div>
                     </div>
-                    <p class="text-sm text-gray-500 mt-4">GitLab Agent, Git deposundaki istenen durumu kümeye çeker ve senkronize eder.</p>
+                    <p class="text-sm text-gray-500 mt-4">Yeni Pod'lar artık bu düğüme atanmaz, ancak mevcut Pod'lar çalışmaya devam eder.</p>
                 </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek Yapılandırma (`.gitlab/agents/<agent-name>/config.yaml`):</h3>
-                <pre><code>
-# .gitlab/agents/my-agent/config.yaml
-gitops:
-  manifest_projects:
-  - id: your-group/your-project/infra-manifests # Kubernetes manifestlerinin bulunduğu repo
-    paths:
-      - /kubernetes-apps/**/*.yaml # Bu yoldaki tüm YAML dosyalarını senkronize et
-ci_access:
-  projects:
-    - id: your-group/your-project/my-app # Bu projeden CI/CD erişimine izin ver
-                </code></pre>
             </div>
         </section>
 
-        <section id="flux-cd" class="mb-12">
-            <h2 class="text-3xl font-bold text-gray-800 section-header">3. Flux CD</h2>
+        <section id="drain" class="mb-12">
+            <h2 class="text-3xl font-bold text-gray-800 section-header">2. `kubectl drain`: Düğümdeki Tüm Pod'ları Boşaltma</h2>
             <div class="content-card">
                 <p class="text-gray-700 mb-4 leading-relaxed">
-                    **Flux CD**, CNCF (Cloud Native Computing Foundation) tarafından desteklenen açık kaynaklı bir GitOps araç setidir. Kubernetes kümenizin durumunu otomatik olarak Git deposundaki istenen durumla senkronize etmek için tasarlanmıştır. Flux, tamamen çekme tabanlı (pull-based) bir GitOps modelini takip eder ve küme içinde çalışan denetleyiciler aracılığıyla çalışır.
+                    `kubectl drain` komutu, bir düğümü hem `cordon` eder (yani yeni Pod'ların planlanmasını engeller) hem de düğümde halihazırda çalışan tüm Pod'ları (bazı istisnalar hariç) güvenli bir şekilde tahliye ederek kümedeki diğer uygun düğümlere taşır. Bu, düğümün tamamen boşaltılmasını ve güvenli bir şekilde kapatılmasını veya üzerinde kapsamlı bakım yapılmasını sağlar. `drain` komutu, uygulamanın kesintisiz hizmet vermeye devam etmesini sağlamak amacıyla Pod'ları kontrollü bir şekilde tahliye etmeye çalışır.
                 </p>
                 <h3 class="text-xl font-bold text-gray-800 mb-3">Neden ve Ne İşe Yarar?</h3>
                 <ul class="list-disc list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
-                    <li>**Bildirimsel GitOps:** Kümenizin tüm istenen durumu (uygulamalar, yapılandırma, altyapı) Git deposunda tanımlanır. Flux, bu Git deposunu tek doğruluk kaynağı olarak kabul eder.</li>
-                    <li>**Otomatik Senkronizasyon:** Git deposundaki değişiklikleri sürekli olarak izler ve kümenin mevcut durumunu Git'teki duruma göre otomatik olarak senkronize eder. Bu, manuel dağıtım hatalarını ortadan kaldırır.</li>
-                    <li>**Kapsamlı GitOps Araç Seti:** Sadece Kubernetes manifestlerini değil, Helm chart'larını, Kustomize yapılandırmalarını ve diğer araçları da yönetebilir.</li>
-                    <li>**Genişletilebilirlik ve Gözlemlenebilirlik:** Olayları, bildirimleri ve sağlık durumunu izlemek için zengin API'ler ve araçlar sunar.</li>
-                    <li>**Satıcıdan Bağımsız:** Herhangi bir Git sağlayıcısına veya Kubernetes dağıtımına özel değildir, bu da yüksek taşınabilirlik sağlar.</li>
+                    <li>**Kapsamlı Düğüm Bakımı/Güncellemesi:** Bir düğümü yeniden başlatmadan, yamalamadan, işletim sistemi veya Kubernetes sürümünü yükseltmeden önce üzerindeki tüm iş yüklerini güvenli bir şekilde başka düğümlere taşımak için en sık kullanılan yöntemdir.</li>
+                    <li>**Düğüm Kaldırma:** Bir düğümü kümeden kalıcı olarak çıkarmadan önce tüm Pod'ları tahliye etmek ve kaynak israfını önlemek için kullanılır.</li>
+                    <li>**Sorunlu Düğümü Ayırma:** Bir düğümde ciddi ve kalıcı sorunlar olduğunda, bu düğümdeki Pod'ları başka sağlıklı düğümlere taşımak için kullanılır.</li>
                 </ul>
-                <h3 class="text-xl font-bold text-gray-800 mb-3">Çalışma Şekli (Basitleştirilmiş):</h3>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Çalışma Şekli:</h3>
                 <p class="text-gray-700 mb-4 leading-relaxed">
-                    Flux CD, Kubernetes kümesine bir dizi denetleyici Pod'u (örneğin Source Controller, Kustomize Controller, Helm Controller, Notification Controller) olarak dağıtılır. Bu denetleyiciler, belirtilen Git depolarını ve diğer kaynakları (örneğin Helm reposu) sürekli olarak izler. Git deposunda bir değişiklik (commit) olduğunda, Source Controller bunu algılar. Ardından, Kustomize Controller veya Helm Controller gibi ilgili denetleyici, bu değişiklikleri Kubernetes API aracılığıyla kümeye uygular. Eğer kümenin mevcut durumu Git'teki durumdan farklıysa, Flux bunu otomatik olarak Git'teki istenen duruma geri çeker (reconciliation).
+                    `kubectl drain <düğüm-adı>` komutu aşağıdaki adımları otomatik olarak yürütür:
+                    <ol class="list-decimal list-inside text-gray-700 mb-4 pl-4 leading-relaxed">
+                        <li>**Düğümü `cordon` eder:** Öncelikle düğümü planlanamaz olarak işaretler. Bu, yeni Pod'ların bu düğüme atanmasını durdurur.</li>
+                        <li>**Pod'ları tahliye etmeye çalışır:** Düğümde çalışan tüm yönetilen Pod'ları (yani bir `Deployment`, `StatefulSet` veya `ReplicaSet` gibi bir kontrolör tarafından yönetilen Pod'ları) tahliye etmeye (evict) çalışır. Kubernetes kontrol düzlemi, bu Pod'ları kümedeki başka uygun düğümlere yeniden planlar.</li>
+                        <li>**İstisnalar:**
+                            <ul>
+                                <li>**Tekil Pod'lar (Bare Pods):** Bir kontrolör tarafından yönetilmeyen Pod'lar varsayılan olarak tahliye edilmez çünkü Kubernetes bu Pod'ları otomatik olarak yeniden planlamaz. Bu Pod'ların manuel olarak silinmesi gerekir; aksi takdirde `drain` komutu başarısız olur. Bu durumlar için `--force` bayrağı kullanılabilir (ancak dikkatli olunmalıdır, çünkü veri kaybına yol açabilir).</li>
+                                <li>**DaemonSet Pod'ları:** `DaemonSet` tarafından oluşturulan Pod'lar da varsayılan olarak tahliye edilmez, çünkü bu Pod'ların her düğümde çalışması beklenir (örneğin log toplayıcılar, izleme ajanları). Bu nedenle, genellikle `kubectl drain` komutu `--ignore-daemonsets` bayrağı ile birlikte kullanılır.</li>
+                                <li>**Pod Disruption Budget (PDB):** Eğer bir uygulamanın Pod'ları için bir PDB tanımlanmışsa, `drain` işlemi PDB'nin izin verdiği kesinti bütçesine uymaya çalışır. PDB, aynı anda kullanılamaz hale gelebilecek Pod sayısını sınırlayarak uygulamanın kritik eşiğin altına düşmesini engeller. PDB'ye uyulamıyorsa `drain` işlemi duraklayabilir veya hata verebilir.</li>
+                            </ul>
+                        </li>
+                    </ol>
+                    Tahliye işlemi tamamlandıktan sonra, düğüm üzerinde güvenli bir şekilde bakım yapılabilir veya düğüm kapatılabilir. Bakım sonrası düğüm tekrar kümeleştirilirse, `kubectl uncordon <düğüm-adı>` komutuyla tekrar `Ready` durumuna getirilir ve yeni Pod'lar için planlanabilir hale gelir.
                 </p>
-                <div class="diagram-box">
-                    <h4 class="text-lg font-bold text-gray-800 mb-4">Flux CD Akışı</h4>
-                    <div class="flex items-center justify-center w-full">
-                        <span class="git-icon">🐙</span>
-                        <div class="component-label mx-2">Git Deposu (İstenen Durum)</div>
-                        <span class="flow-arrow">⟵</span>
-                        <div class="flex flex-col items-center mx-2">
-                            <span class="flux-icon">🌊</span>
-                            <div class="component-label mt-1">Flux Denetleyicileri</div>
-                        </div>
-                        <span class="flow-arrow">🔄</span>
-                        <span class="cluster-icon">☸️</span>
-                        <div class="component-label mx-2">Kubernetes Kümesi</div>
-                    </div>
-                    <p class="text-sm text-gray-500 mt-4">Flux denetleyicileri, Git deposundaki durumu kümeye sürekli senkronize eder.</p>
-                </div>
-                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek Flux Kaynakları:</h3>
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Örnek Kullanım:</h3>
                 <pre><code>
-# app-source.yaml (Git Deposu Tanımı)
-apiVersion: source.toolkit.fluxcd.io/v1beta2
-kind: GitRepository
-metadata:
-  name: my-app-git-repo
-  namespace: flux-system
-spec:
-  interval: 1m0s # Her 1 dakikada bir kontrol et
-  url: https://github.com/your-org/my-app-manifests
-  ref:
-    branch: main # main branch'ini izle
----
-# app-kustomization.yaml (Kubernetes Manifest Uygulaması)
-apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
-kind: Kustomization
-metadata:
-  name: my-app-kustomization
-  namespace: flux-system
-spec:
-  interval: 5m0s # Her 5 dakikada bir senkronize et
-  sourceRef:
-    kind: GitRepository
-    name: my-app-git-repo # Yukarıdaki GitRepository'yi kullan
-  path: "./deploy/production" # Repo içindeki bu yoldaki manifestleri uygula
-  prune: true # Git'te olmayan kaynakları sil
+# Düğümü boşalt (DaemonSet Pod'larını yok say ve kontrolörsüz Pod'ları zorla sil)
+kubectl drain my-worker-node-1 --ignore-daemonsets --delete-emptydir-data --force
+
+# Düğümün Pod durumunu kontrol et (artık Pod'lar başka yerlere taşınmış olmalı)
+kubectl get pods -o wide --all-namespaces | grep my-worker-node-1
+# Bu komut genellikle boş çıktı verir, çünkü Pod'lar taşınmıştır.
+
+# Bakım sonrası düğümü tekrar aktif hale getir
+kubectl uncordon my-worker-node-1
                 </code></pre>
+                <div class="diagram-box">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">`kubectl drain` Akışı</h4>
+                    <div class="flex items-center justify-center w-full">
+                        <div class="node-representation node-status-ready">
+                            <h5 class="font-semibold text-gray-800">Düğüm A</h5>
+                            <p class="text-xs text-gray-600 mb-2">(Ready)</p>
+                            <span class="pod-icon">📦</span><div class="pod-label">Pod 1</div>
+                            <span class="pod-icon">📦</span><div class="pod-label">Pod 2</div>
+                        </div>
+                        <span class="flow-arrow-long">⟶ `drain` ⟶</span>
+                        <div class="node-representation node-status-draining">
+                            <h5 class="font-semibold text-gray-800">Düğüm A</h5>
+                            <p class="text-xs text-gray-600 mb-2">(Draining...)</p>
+                            <span class="pod-icon" style="color: #ef4444;">⬇️</span><div class="pod-label" style="background-color: #fce7e7; border-color: #fca5a5; color: #dc2626;">Pod 1 (Evicting)</div>
+                            <span class="pod-icon" style="color: #ef4444;">⬇️</span><div class="pod-label" style="background-color: #fce7e7; border-color: #fca5a5; color: #dc2626;">Pod 2 (Evicting)</div>
+                        </div>
+                        <span class="flow-arrow-long">⟶ Yeniden Planlama ⟶</span>
+                        <div class="node-representation node-status-ready">
+                            <h5 class="font-semibold text-gray-800">Düğüm B</h5>
+                            <p class="text-xs text-gray-600 mb-2">(Ready)</p>
+                            <span class="pod-icon">📦</span><div class="pod-label">Pod 1 (Re-scheduled)</div>
+                            <span class="pod-icon">📦</span><div class="pod-label">Pod 2 (Re-scheduled)</div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-4">`drain` komutu düğümü planlanamaz hale getirir ve mevcut Pod'ları güvenli bir şekilde tahliye ederek başka düğümlere taşır.</p>
+                </div>
             </div>
         </section>
 
         <section id="karsilastirma" class="mb-12">
-            <h2 class="text-3xl font-bold text-gray-800 section-header">GitLab Runner, GitLab Agent ve Flux CD Karşılaştırması</h2>
+            <h2 class="text-3xl font-bold text-gray-800 section-header">Cordon ve Drain Karşılaştırması</h2>
             <p class="text-lg text-gray-700 leading-relaxed mb-6">
-                Bu üç araç, Kubernetes ortamında uygulama dağıtımını ve yönetimini otomatikleştirmek için kullanılsa da, farklı yaklaşımlara ve kullanım senaryolarına sahiptirler. Seçiminiz, mevcut altyapınıza, güvenlik gereksinimlerinize ve tercih ettiğiniz operasyonel modele bağlı olacaktır.
+                `kubectl cordon` ve `kubectl drain` komutları, Kubernetes'te düğüm yönetimi için farklı ancak ilişkili amaçlara hizmet eder. `cordon` daha az yıkıcı ve bir hazırlık adımı iken, `drain` daha kapsamlı bir tahliye işlemidir.
             </p>
             <div class="overflow-x-auto">
                 <table>
                     <thead>
                         <tr>
                             <th>Özellik</th>
-                            <th>GitLab Runner</th>
-                            <th>GitLab Agent</th>
-                            <th>Flux CD</th>
+                            <th>`kubectl cordon`</th>
+                            <th>`kubectl drain`</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td>**Temel Amaç**</td>
-                            <td>GitLab CI/CD işlerini yürütmek. Geleneksel CI/CD.</td>
-                            <td>GitLab ile Kubernetes kümeleri arasında güvenli bağlantı; GitOps ve CI/CD entegrasyonu.</td>
-                            <td>Kubernetes kümesini Git'teki istenen duruma göre otomatik olarak senkronize etmek (GitOps).</td>
+                            <td>**Ana Amaç**</td>
+                            <td>Düğümü yeni Pod'ların planlanmasından (scheduling) engellemek.</td>
+                            <td>Düğümü hem planlanamaz olarak işaretlemek hem de üzerindeki tüm Pod'ları (bazı istisnalar hariç) tahliye etmek.</td>
                         </tr>
                         <tr>
-                            <td>**Dağıtım Yaklaşımı**</td>
-                            <td>Push (İtme) tabanlı. Runner, GitLab'dan aldığı komutlarla kümeye dağıtım yapar.</td>
-                            <td>Pull (Çekme) tabanlı GitOps. Agent, Git'ten çeker. CI/CD ile hibrit kullanım mümkün.</td>
-                            <td>Pull (Çekme) tabanlı GitOps. Küme içindeki denetleyiciler Git'ten çeker.</td>
+                            <td>**Mevcut Pod'lara Etkisi**</td>
+                            <td>Mevcut çalışan Pod'lar etkilenmez, çalışmaya devam eder.</td>
+                            <td>Mevcut çalışan Pod'ları güvenli bir şekilde tahliye eder (evicts).</td>
                         </tr>
                         <tr>
-                            <td>**Kurulum Yeri**</td>
-                            <td>GitLab sunucusu dışında herhangi bir sunucu/VM/konteyner.</td>
-                            <td>Hedef Kubernetes kümesi içinde (Agentk Pod'u).</td>
-                            <td>Hedef Kubernetes kümesi içinde (bir dizi denetleyici Pod'u).</td>
+                            <td>**Yan Etkileri**</td>
+                            <td>Yeni Pod'lar bu düğüme atanmaz. Başka Pod'lar etkilenmez.</td>
+                            <td>Tahliye edilen Pod'lar başka düğümlere yeniden planlanır. Bu, uygulamanın kısa süreli yeniden başlatılmasına neden olabilir.</td>
                         </tr>
                         <tr>
-                            <td>**Küme Bağlantısı**</td>
-                            <td>CI/CD ortamından `kubectl` veya diğer araçlarla doğrudan erişim (API anahtarları/kubeconfig gerektirir).</td>
-                            <td>Küme içindeki Agent ve GitLab sunucusu arasında güvenli gRPC tünel. Daha az hassas bilgi dışarıda.</td>
-                            <td>Küme içindeki denetleyiciler Kubernetes API'sine erişir; Git reposuna erişim kendi kimlik bilgileriyle.</td>
+                            <td>**Kullanım Senaryoları**</td>
+                            <td>Kısa süreli bakım öncesi hazırlık, düğümün geçici olarak yeni iş yükü almasını engelleme, `drain` işleminden önceki ilk adım.</td>
+                            <td>Uzun süreli bakım, işletim sistemi yükseltmesi, donanım değişimi, düğümü kümeden kalıcı olarak çıkarma.</td>
                         </tr>
                         <tr>
-                            <td>**GitLab Bağımlılığı**</td>
-                            <td>GitLab CI/CD ile çalışmak için zorunlu.</td>
-                            <td>Tamamen GitLab ekosistemine entegre. Yalnızca GitLab ile çalışır.</td>
-                            <td>Git sağlayıcısından bağımsız. GitHub, GitLab, Bitbucket vb. ile çalışabilir.</td>
+                            <td>**Gereken Bayraklar**</td>
+                            <td>Genellikle ek bayrak gerekmez.</td>
+                            <td>`--ignore-daemonsets` (DaemonSet Pod'larını atlamak için), `--force` (kontrolör tarafından yönetilmeyen Pod'ları silmek için), `--delete-emptydir-data` (emptyDir birimlerini silmek için).</td>
                         </tr>
                         <tr>
-                            <td>**Ana Kullanım Senaryosu**</td>
-                            <td>Kod derleme, test etme, imaj oluşturma, geleneksel Kubernetes dağıtımları (push).</td>
-                            <td>Güvenli GitOps dağıtımları, özel/güvenli kümeleri yönetme, GitLab tabanlı GitOps.</td>
-                            <td>Kapsamlı GitOps uygulama (uygulama ve altyapı), Helm/Kustomize yönetimi, satıcıdan bağımsız GitOps.</td>
-                        </tr>
-                        <tr>
-                            <td>**Gözlemlenebilirlik**</td>
-                            <td>GitLab CI/CD arayüzü üzerinden job logları ve durum.</td>
-                            <td>GitLab UI üzerinden dağıtım durumu ve etkinlikler.</td>
-                            <td>Küme içindeki kaynaklar, Flux CLI, ve bildirimler aracılığıyla ayrıntılı gözlemlenebilirlik.</td>
+                            <td>**Geri Alma**</td>
+                            <td>`kubectl uncordon <düğüm-adı>` komutu ile düğüm tekrar planlanabilir hale gelir.</td>
+                            <td>`kubectl uncordon <düğüm-adı>` komutu ile düğüm tekrar planlanabilir hale gelir. (Ancak tahliye edilen Pod'ların geri gelmesi için kontrolör tarafından yeniden planlanması gerekir).</td>
                         </tr>
                     </tbody>
                 </table>
@@ -423,18 +341,15 @@ spec:
         <section id="sonuc" class="mb-12">
             <h2 class="text-3xl font-bold text-gray-800 section-header">Sonuç</h2>
             <p class="text-lg text-gray-700 leading-relaxed">
-                Kubernetes ortamlarında sürekli entegrasyon ve dağıtım süreçleri için farklı ihtiyaçlara yönelik çeşitli araçlar bulunmaktadır. **GitLab Runner**, geleneksel push tabanlı CI/CD yaklaşımlarının temelidir ve GitLab işlem hatlarını güçlü bir şekilde yürütür. **GitLab Agent**, GitLab ekosistemi içinde Kubernetes için güvenli ve pull tabanlı bir GitOps deneyimi sunarken, **Flux CD** ise satıcıdan bağımsız, genişletilebilir ve tamamen GitOps prensiplerine odaklanmış kapsamlı bir araç setidir.
-            </p>
-            <p class="text-lg text-gray-700 leading-relaxed mt-4">
-                Seçiminiz, mevcut CI/CD altyapınızın GitLab merkezli olup olmadığına, güvenlik gereksinimlerinizin katılığına ve GitOps yaklaşımını ne kadar derinlemesine benimsemek istediğinize bağlı olacaktır. Genellikle, GitLab kullanıcıları için entegre bir deneyim için GitLab Agent mantıklı bir seçimken, daha esnek ve satıcıdan bağımsız bir GitOps aracı arayanlar için Flux CD öne çıkmaktadır.
+                `kubectl cordon` ve `kubectl drain` komutları, Kubernetes kümelerinde düğüm bakımı ve operasyonel görevler için vazgeçilmez araçlardır. `cordon`, yeni iş yüklerinin belirli bir düğüme gelmesini engellemek için hafif bir yaklaşım sunarken, `drain`, düğümün tamamen boşaltılmasını ve üzerindeki Pod'ların başka düğümlere taşınmasını sağlayarak daha kapsamlı bir bakım işlemi için temel teşkil eder. Bu komutları doğru anlamak ve kullanmak, Kubernetes operasyonlarınızın sorunsuz, kesintisiz ve güvenli bir şekilde yürütülmesini sağlar. Doğru senaryoda doğru komutu kullanmak, hem uygulama kullanılabilirliğini korur hem de operasyonel verimliliği artırır.
             </p>
         </section>
     </main>
     
     <footer class="bg-gray-800 text-white py-8">
         <div class="container mx-auto px-6 text-center">
-            <p>&copy; 2025 Kubernetes CI/CD ve GitOps Araçları Anlatım. Tüm hakları saklıdır.</p>
-            <p class="text-sm text-gray-400 mt-2">Bu belge, Kubernetes CI/CD ve GitOps araçlarını detaylı açıklamak amacıyla oluşturulmuştur.</p>
+            <p>&copy; 2025 Kubernetes Düğüm Yönetimi. Tüm hakları saklıdır.</p>
+            <p class="text-sm text-gray-400 mt-2">Bu belge, Kubernetes'teki düğüm yönetimi komutlarını detaylı açıklamak amacıyla oluşturulmuştur.</p>
         </div>
     </footer>
 
